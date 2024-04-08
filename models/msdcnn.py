@@ -30,8 +30,10 @@ class MSDCNN(nn.Module):
         self.relu = nn.ReLU(inplace=True)
 
 
-    def forward(self, ms, lms, pan):
+    def forward(self, input):
 
+        [lms, pan, ms] = input
+        
         concat = torch.cat([lms, pan], 1)  # Bsx9x64x64
 
         out1 = self.relu(self.conv1(concat))  # Bsx60x64x64

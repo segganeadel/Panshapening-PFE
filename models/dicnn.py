@@ -16,7 +16,10 @@ class DICNN(nn.Module):
 
         self.relu = nn.ReLU(inplace=True)
 
-    def forward(self, ms, lms, pan):
+    def forward(self, input):
+
+        [lms, pan, ms] = input
+        
         # x= lms; y = pan
         x = lms
         y = pan

@@ -47,7 +47,9 @@ class PanNet(nn.Module):
             self.res4
         )
 
-    def forward(self, ms, lms, pan):# x= hp of ms; y = hp of pan
+    def forward(self, input):# x= hp of ms; y = hp of pan
+        
+        [lms, pan, ms] = input
 
         x = ms 
         y = pan 

@@ -14,7 +14,7 @@ import torch
 import torch.nn as nn
 import cv2 as cv
 
-from dataloader import Dataset_h5py_test
+from dataloader import Dataset_h5py_test, Dataset_h5py_train
 
 models = {
     "APNN":(APNN,"apnn.pth"),
@@ -33,29 +33,26 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Load the data 
 data_path1 = os.path.join(".","data","h5py","qb","full_examples","test_qb_OrigScale_multiExm1.h5")
-data_path2 = os.path.join(".","data","h5py","qb","reduced_examples","test_qb_multiExm1.h5")
-
 data = Dataset_h5py_test(data_path1, img_scale=2047.0, highpass=False, device=device)
+
+data_path2 = os.path.join(".","data","h5py","qb","reduced_examples","test_qb_multiExm1.h5")
+data = Dataset_h5py_train(data_path2, img_scale=2047.0, highpass=False, device=device)
+
 
 data_loader = torch.utils.data.DataLoader(data, batch_size=1, shuffle=False, num_workers=0, drop_last=False)
 
 
-
-def generate_image(model, ms, lms, pan, batch_n, model_name):
-
-    result = model(ms, lms, pan)
-    image_in = lms.detach().cpu().numpy()[:,:3].transpose(0,2,3,1)*255
-    image_out = result.detach().cpu().numpy()[:,:3].transpose(0,2,3,1)*255
+def generate_image_in(image_in, batch_n, model_name):
 
     for index,image in enumerate(image_in):
         print(image.shape, "image_in")
         print(image.max())
         string = f"out/in_images/image_in_{batch_n}_{index}.png"
-        print(string)
         cv.imwrite(string, image)
 
+def generate_image_out (image_out,batch_n, model_name):
+
     for index,image in enumerate(image_out):
-        print(result.shape, "result")
         print(image.shape, "image_out")
         print(image.max())
         path_out = f"out/{model_name}/image_out_{batch_n}_{index}.png"
@@ -70,8 +67,18 @@ for model_name in models:
     path = os.path.join(".","weights","QB",wieght_path) 
     model.load_state_dict(torch.load(path))
     model.eval()
-
     iter_data = iter(data_loader)
-    for index in range(len(data_loader)):
-        ms, lms, pan = next(iter_data)
-        generate_image(model, ms, lms, pan, index, model_name)
+
+    for batch_n,batch in enumerate(data_loader):
+        with torch.no_grad(): 
+            x = batch
+
+            # lms = x[0]
+            # image_in = lms.detach().cpu().numpy()[:,:3].transpose(0,2,3,1)*255
+            # generate_image_in (image_in , batch_n, model_name)
+            
+            x = [i.to(device) for i in x]
+            result = model(x)
+            image_out = result.detach().cpu().numpy()[:,:3].transpose(0,2,3,1)*255
+            generate_image_out(image_out,batch_n,model_name)
+

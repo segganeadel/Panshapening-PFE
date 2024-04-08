@@ -26,7 +26,7 @@ class BDPN(nn.Module):
         super(BDPN, self).__init__()
 
         channel1 = channel
-        spectral_num = spectral_num
+        self.spectral_num = spectral_num
         channel2 = 4*spectral_num
 
         # ConvTranspose2d: output = (input - 1)*stride + outpading - 2*padding + kernelsize
@@ -98,8 +98,9 @@ class BDPN(nn.Module):
         )
 
 
-    def forward(self, ms, lms, pan):  # x= ms(Nx8x16x16); y = pan(Nx1x64x64)
-
+    def forward(self, input):  # x= ms(Nx8x16x16); y = pan(Nx1x64x64)
+        
+        lms, pan, ms = input
         x = ms
         y = pan
 

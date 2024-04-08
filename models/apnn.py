@@ -18,8 +18,8 @@ class APNN(nn.Module):
         self.relu = nn.ReLU(inplace=True)
 
 
-    def forward(self, ms, lms, pan):  # x= lms; y = pan
-        
+    def forward(self, input):  # x= lms; y = pan
+        [lms, pan, ms] = input
         x = lms
         y = pan
         x = torch.cat([x, y], 1)  # Bsx9x64x64
@@ -30,8 +30,7 @@ class APNN(nn.Module):
         rs = self.relu(self.conv1(x))
         rs = self.relu(self.conv2(rs))  
         output = self.conv3(rs) 
-        print(output.shape, "output")
-        print(lms.shape, "lms")
-        output = output + lms
+
+        output = torch.add(output,lms)
 
         return output

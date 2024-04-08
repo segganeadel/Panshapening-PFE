@@ -40,7 +40,9 @@ class DRPNN(nn.Module):
             Repeatblock(),
         )
 
-    def forward(self, ms, lms, pan):  # x= lms; y = pan
+    def forward(self, input):  # x= lms; y = pan
+
+        [lms, pan, ms] = input
         
         input = torch.cat([lms, pan], 1)  # Bsx9x64x64
         rs = self.relu(self.conv1(input))  # Bsx64x64x64

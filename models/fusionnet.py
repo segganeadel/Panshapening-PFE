@@ -47,8 +47,8 @@ class FusionNet(nn.Module):
         # init_weights(self.backbone, self.conv1, self.conv3)   # state initialization, important!
         # self.apply(init_weights)
 
-    def forward(self, ms, lms, pan):  # x= lms; y = pan
-        
+    def forward(self, input):  # x= lms; y = pan
+        [lms, pan, ms] = input
         x = lms
         y = pan
  

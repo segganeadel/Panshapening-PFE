@@ -17,8 +17,9 @@ class PNN(nn.Module):
 
         # init_weights(self.conv1, self.conv2, self.conv3)
 
-    def forward(self, ms, lms, pan):  # x = cat(lms,pan)
+    def forward(self, input):  # x = cat(lms,pan)
         
+        [lms, pan, ms] = input
         x = torch.cat([lms, pan], 1)
 
         input1 = x  # Bsx9x64x64

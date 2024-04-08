@@ -2,6 +2,8 @@
 *.h5
 #.mat data
 *.mat
+# images
+*.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
