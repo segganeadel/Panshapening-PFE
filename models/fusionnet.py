@@ -59,5 +59,7 @@ class FusionNet(nn.Module):
 
         rs = self.backbone(rs)  # ResNet's backbone!
         output = self.conv3(rs)  # Bsx8x64x64
+        
+        output = torch.add(output, lms) 
 
         return output  # lms + outs

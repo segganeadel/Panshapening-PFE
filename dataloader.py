@@ -4,11 +4,11 @@ import h5py
 import cv2
 import numpy as np
 
-##---------------------------------------------------------- Test dataset ----------------------------------------------------------##
+##---------------------------------------------------------- FR dataset ----------------------------------------------------------##
     
-class Dataset_h5py_test(data.Dataset):
-    def __init__(self, file_path: str, img_scale: float = 2047.0, highpass = False, device = 'cpu'):
-        super(Dataset_h5py_test, self).__init__()
+class Dataset_h5py_fr(data.Dataset):
+    def __init__(self, file_path: str, img_scale: float = 2047.0, highpass = False):
+        super(Dataset_h5py_fr, self).__init__()
         self.highpass = highpass
         self.img_scale = img_scale
         data = h5py.File(file_path)  # NxCxHxW = 0x1x2x3
@@ -43,14 +43,14 @@ class Dataset_h5py_test(data.Dataset):
     
     def __len__(self):
         return self.pan.shape[0]
-##---------------------------------------------------------- Train dataset ----------------------------------------------------------##
+##---------------------------------------------------------- RR dataset ----------------------------------------------------------##
 
-class Dataset_h5py_train(data.Dataset):
+class Dataset_h5py_rr(data.Dataset):
     def __init__(self, file_path: str, img_scale: float = 2047.0, highpass = False):
-        super(Dataset_h5py_train, self).__init__()
+        super(Dataset_h5py_rr, self).__init__()
         self.highpass = highpass
         self.img_scale = img_scale
-        data = h5py.File(file_path,)  # NxCxHxW = 0x1x2x3
+        data = h5py.File(file_path)  # NxCxHxW = 0x1x2x3
         print(f"loading Dataset: {file_path} with {img_scale}")
         self.img_scale = img_scale
 
