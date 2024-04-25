@@ -11,8 +11,9 @@ from models.pnn import PNN
 
 
 import torch
-import torch.nn as nn
 import cv2 as cv
+import h5py
+import numpy as np
 
 from dataloader import Dataset_h5py_fr, Dataset_h5py_rr
 
@@ -46,17 +47,17 @@ models = [
 ]
 
 # Choose the model
-model_index = 0
+model_index = 4
 model, wieght_path, highpass, model_name = models[model_index] 
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Load the data 
-data_path1 = os.path.join(".","data","h5py","qb","full_examples","test_qb_OrigScale_multiExm1.h5")
-data = Dataset_h5py_fr(data_path1, img_scale=2047.0, highpass=highpass)
-# data_path2 = os.path.join(".","data","h5py","qb","reduced_examples","test_qb_multiExm1.h5")
-# data = Dataset_h5py_train(data_path2, img_scale=2047.0, highpass=False)
+#data_path1 = os.path.join(".","data","h5py","qb","full_examples","test_qb_OrigScale_multiExm1.h5")
+#data = Dataset_h5py_fr(data_path1, img_scale=2047.0, highpass=highpass)
+data_path2 = os.path.join(".","data","h5py","qb","reduced_examples","test_qb_multiExm1.h5")
+data = Dataset_h5py_rr(data_path2, img_scale=2047.0, highpass=highpass)
 data_loader = torch.utils.data.DataLoader(data, batch_size=1, shuffle=False, num_workers=0, drop_last=False)
 
 # Load the model and the weights
@@ -66,15 +67,29 @@ model.load_state_dict(torch.load(path))
 model.eval()
 iter_data = iter(data_loader)
 
+gt_data = []
+out_data = []
+
+
 with torch.no_grad(): 
-    for batch_n,batch in enumerate(data_loader):
-        x = batch
+    for batch_n,in_data in enumerate(data_loader):
+
+        x_batch,gt_batch = in_data
+
         # lms = x[0]
         # image_in = lms.detach().cpu().numpy()[:,:3].transpose(0,2,3,1)*255
         # generate_image_in (image_in , batch_n, model_name)
         
-        x = [i.to(device) for i in x]
-        result = model(x)
-        image_out = result.detach().cpu().numpy()[:,:3].transpose(0,2,3,1)*255
+        x_batch = [i.to(device) for i in x_batch]
+        result = model(x_batch)
+        out = result.detach().cpu().numpy() # get output from the model
+
+        out_data.append(out*2047.0)
+        gt_data.append(gt_batch.numpy()*2047.0)
+
+        image_out = out[:,:3].transpose(0,2,3,1)*255 #get bgr image and transform to 0-255
         generate_image_out(image_out,batch_n,model_name)
 
+with h5py.File("mytestfile.hdf5", "w") as f:
+    dset = f.create_dataset("out_data", data=np.array(out_data))
+    dset = f.create_dataset("gt_data", data=np.array(gt_data))
