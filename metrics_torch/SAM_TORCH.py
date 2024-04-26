@@ -15,7 +15,7 @@ def sam_torch(ms_gt:torch.Tensor, ms_fus:torch.Tensor, epsilon= 2 * 10**(-16)) -
     Returns
     -------
     Tensor
-        Array of the SAM average indexes for each image of the N images and H x W maps of the SAM indexes of the N images
+        Array of the SAM average indexes for each image of the N images
     """
     prod_scal = torch.sum(ms_gt * ms_fus, axis=1)
     norm_gt = torch.sum(ms_gt**2, axis=1)

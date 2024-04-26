@@ -1,8 +1,21 @@
 import numpy as np
 
-def ERGAS(I_GT, I_FU, ratio=4):
+def ERGAS(I_GT:np.ndarray, I_FU:np.ndarray, ratio=4) -> float:
     """
-    Input shape C x H x W
+    Parameters
+    ----------
+    I_GT : np.ndarray
+        Ground truth image of shape H x W x C
+        H: Height of the image, W: Width of the image, C: Number of channels
+    I_FU : np.ndarray
+        Fused image of shape H x W x C
+        H: Height of the image, W: Width of the image, C: Number of channels
+    ratio : int
+        Ratio of spatial resolution between the low and high resolution images
+    Returns
+    -------
+    float
+        ERGAS index
     """
     I_GT = I_GT.astype('float64')
     I_FU = I_FU.astype('float64')

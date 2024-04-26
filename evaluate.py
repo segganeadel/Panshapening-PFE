@@ -5,11 +5,9 @@ import torch
 from metrics_torch.ERGAS_TORCH import ergas_torch
 from metrics_torch.SAM_TORCH import sam_torch
 from metrics_numpy.SAM import SAM as new_SAM
-from metrics.SAM import SAM
-from metrics.ERGAS import ERGAS 
 
-from metrics_numpy.q2n import q2n
-from metrics_torch.Q2N_TORCH import q2n as new_q2n
+from metrics.q2n import q2n
+from metrics_torch.Q2N_TORCH import q2n_torch
 
 data = h5py.File("./mytestfile.hdf5", "r")
 
@@ -28,16 +26,17 @@ for images in zip(gt,out):
     gt_image_t = np.copy(gt_image).transpose(1,2,0)
     out_image_t = np.copy(out_image).transpose(1,2,0)
 
-    gt_image_ten = torch.as_tensor(gt_image.transpose(1,2,0))
-    out_image_ten = torch.as_tensor(out_image.transpose(1,2,0))
+    gt_image_ten = torch.as_tensor(gt_images)
+    out_image_ten =torch.as_tensor(out_images)
 
     # ERGAS_index = ERGAS(gt_image,out_image)
     # SAM_index,SAM_map = SAM(gt_image,out_image)
 
-    new_q2n_index,_ = new_q2n(gt_image_ten, out_image_ten)
-    q2n_index,_ = q2n(gt_image_t, out_image_t,32,32)
+    q2n_index, _ = q2n(gt_image_t, out_image_t,32,32)
+    new_q2n_index, _ = q2n_torch(gt_image_ten, out_image_ten)
+    new_q2n_index = new_q2n_index.item()
 
-    print(q2n_index)
+    print(new_q2n_index,q2n_index)
     if q2n_index != new_q2n_index:
         print("err",q2n_index,new_q2n_index)
         print("err",q2n_index-new_q2n_index)
