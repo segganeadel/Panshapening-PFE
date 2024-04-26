@@ -1,7 +1,24 @@
 import torch
 
 
-def q2n_torch(I_GT, I_F, Q_blocks_size = 32, Q_shift = 32):
+def q2n_torch(I_GT:torch.Tensor, I_F:torch.Tensor, Q_blocks_size=32, Q_shift=32):
+    """
+    Parameters
+    ----------
+    I_GT : torch.Tensor
+        Ground truth images of shape (N, C, H, W)
+    I_F : torch.Tensor
+        Fusion images of shape (N, C, H, W)
+    Q_blocks_size : int, optional
+        Size of the blocks, by default 32
+    Q_shift : int, optional
+        Shift of the blocks, by default 32
+
+    Returns
+    -------
+    tuple[Tensor, Tensor]
+        Q2n indexes and Q2n maps of shape (N,) and (N, H, W)
+    """
 
     # TODO: change the code to use the same input format without the need to permute
     I_GT = I_GT.permute(0,2,3,1)
@@ -26,7 +43,7 @@ def q2n(I_GT, I_F, Q_blocks_size = 32, Q_shift = 32):
 
     N1,N2,N3 = I_GT.shape
     
-    # is this really the best way to do this ?
+    # TODO: is this really the best way to do this ?
     steps = torch.ceil(torch.tensor(I_GT.shape[:2])/Q_shift).int()
 
     stepx = 1 if steps[0] <= 0 else steps[0]
@@ -129,11 +146,12 @@ def q2n(I_GT, I_F, Q_blocks_size = 32, Q_shift = 32):
 
 def onions_quality(gt_block, fus_block, block_size):
 
+    # does simply flipping the [1:] channels without using concatenate affect calculations ?
     fus_block = torch.concatenate((fus_block[:,:,:1], -fus_block[:,:,1:]), axis=2)
     N3 = gt_block.shape[2]
     
     """ Block normalization """
-    gt_block, gt_block_means_not_norm, gt_block_stds_not_norm = norm_blocco(gt_block)
+    gt_block, gt_block_means_not_norm, gt_block_stds_not_norm = nomalize_block(gt_block)
 
     fus_block[:,:,0] -= gt_block_means_not_norm[0]  
     fus_block[:,:,1:] += gt_block_means_not_norm[1:]   
@@ -154,6 +172,7 @@ def onions_quality(gt_block, fus_block, block_size):
     termine4 = mod_q1m**2 + mod_q2m**2
 
     mean_bias = 2*termine2/termine4
+
     block_area = block_size**2
     int1 = block_area/(block_area-1) * torch.mean(mod_q1**2)
     int2 = block_area/(block_area-1) * torch.mean(mod_q2**2)
@@ -172,7 +191,7 @@ def onions_quality(gt_block, fus_block, block_size):
 
     return q
 
-def norm_blocco(blocks, epsilon= 2.2204 * 10**(-16)):
+def nomalize_block(blocks, epsilon= 2.2204 * 10**(-16)):
     
     block_means = torch.mean(blocks, axis=(0,1))
     block_stds = torch.std(blocks, correction=1, axis=(0,1))   
