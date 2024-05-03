@@ -15,22 +15,24 @@ def sam_torch(ms_gt:torch.Tensor, ms_fus:torch.Tensor, epsilon= 2 * 10**(-16)) -
     Returns
     -------
     Tensor
-        Array of the SAM average indexes for each image of the N images
+        Array of the SAM average indexes for each image of the N images in degrees
     """
     prod_scal = torch.sum(ms_gt * ms_fus, axis=1)
+
+    # Slightly different from the original equation, square root of the product of the sums not the product of the nomrs
     norm_gt = torch.sum(ms_gt**2, axis=1)
     norm_fus = torch.sum(ms_fus**2, axis=1)
     lower_term = torch.sqrt(norm_gt * norm_fus)
-
+    
     lower_term = torch.where(lower_term == 0, epsilon, lower_term) # to avoid division by zero
     SAM_map = torch.arccos(prod_scal/lower_term)
 
-    angolo = torch.mean(SAM_map)
+    angolo = torch.mean(SAM_map, axis=(1,2))
     SAM_index = torch.rad2deg(angolo)
     
     return SAM_index
 
-def sam_map_torch(ms_gt:torch.Tensor, ms_fus:torch.Tensor, epsilon= 2 * 10**(-16)):
+def sam_map_torch(ms_gt:torch.Tensor, ms_fus:torch.Tensor, epsilon= 2 * 10**(-16)) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Parameters
     ----------
@@ -45,7 +47,7 @@ def sam_map_torch(ms_gt:torch.Tensor, ms_fus:torch.Tensor, epsilon= 2 * 10**(-16
     Returns
     -------
     tuple[Tensor, Tensor]
-        Array of the SAM average indexes for each image of the N images and H x W maps of the SAM indexes of the N images
+        Array of the SAM average indexes for each image of the N images in degrees and H x W maps of the SAM indexes of the N images
     """
     prod_scal = torch.sum(ms_gt * ms_fus, axis=1)
     norm_gt = torch.sum(ms_gt**2, axis=1)
@@ -55,7 +57,7 @@ def sam_map_torch(ms_gt:torch.Tensor, ms_fus:torch.Tensor, epsilon= 2 * 10**(-16
     lower_term = torch.where(lower_term == 0, epsilon, lower_term) # to avoid division by zero
     SAM_map = torch.arccos(prod_scal/lower_term)
 
-    angolo = torch.mean(SAM_map)
+    angolo = torch.mean(SAM_map, axis=(1,2))
     SAM_index = torch.rad2deg(angolo)
 
     return SAM_index, SAM_map
