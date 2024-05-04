@@ -32,3 +32,5 @@ class APNN(L.LightningModule):
         output = torch.add(output,lms)
 
         return output
+
+    

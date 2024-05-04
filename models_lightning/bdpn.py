@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import lightning as L
+from torchmetrics.image import SpectralAngleMapper, ErrorRelativeGlobalDimensionlessSynthesis
 
 # ----------------------------------------------------
 class Resblock(nn.Module):
@@ -91,6 +92,13 @@ class BDPN(L.LightningModule):
             self.rres9,
             self.rres10
         )
+        
+        #############################################################################################
+        #criterion
+        self.criterion = nn.MSELoss()
+        #metrics
+        self.sam = SpectralAngleMapper()
+        self.ergas = ErrorRelativeGlobalDimensionlessSynthesis(0.25)
 
 
     def forward(self, input):  # x= ms(Nx8x16x16); y = pan(Nx1x64x64)
@@ -132,3 +140,45 @@ class BDPN(L.LightningModule):
         output = torch.add(pan_feature_level1, ms_feature_up2)  # Nx8x64x64
 
         return output
+    
+    def configure_optimizers(self):
+        pass
+
+    def training_step(self, batch, batch_idx):
+        y_hat = self(batch)
+
+        y = batch['gt']
+        loss = self.criterion(y_hat, y)   
+        sam = self.sam(y_hat, y).rad2deg()
+        ergas = self.ergas(y_hat, y)
+        self.log_dict({'training_loss': loss, 
+                       'training_sam': sam, 
+                       'training_ergas': ergas}, 
+                            on_step=True, on_epoch=True)
+        return loss
+    
+    def validation_step(self, batch, batch_idx):
+        y_hat = self(batch)
+
+        y = batch['gt']
+        sam = self.sam(y_hat, y).rad2deg()
+        ergas = self.ergas(y_hat, y)
+        loss = self.criterion(y_hat, y)
+        self.log_dict({'validation_loss': loss, 
+                       'validation_sam': sam, 
+                       'validation_ergas': ergas}, 
+                            on_step=True, on_epoch=True)
+        return loss
+    
+    def test_step(self, batch, batch_idx):
+        y_hat = self(batch)
+
+        y = batch['gt']
+        loss = self.criterion(y_hat, y)
+        self.log('test_loss', loss)
+        return loss
+
+    def predict_step(self, batch, batch_idx):
+        x = batch
+        preds = self(x)
+        return preds

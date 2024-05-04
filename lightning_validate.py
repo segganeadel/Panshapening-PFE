@@ -10,14 +10,13 @@ from models_lightning.fusionnet import FusionNet
 from models_lightning.msdcnn import MSDCNN
 from models_lightning.pannet import PanNet
 from models_lightning.pnn import PNN
+
 import os
-
 from lightning import Trainer
-
 from torch.utils.data import DataLoader
 from dataloader import Dataset_h5py_fr, Dataset_h5py_rr
-import cv2 as cv
 
+from lightning.pytorch.loggers import WandbLogger
 
 def main(hparams):
     
@@ -33,7 +32,7 @@ def main(hparams):
     }
 
     # Choose the model
-    model_name = "fusionnet"
+    model_name = "bdpn" # "apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn"
     model, weights_path, highpass = models.get(model_name)
     weights_path = os.path.join(".","weights","QB", weights_path) 
     
@@ -45,11 +44,11 @@ def main(hparams):
 
     data_path2 = os.path.join(".","data","h5py","qb","reduced_examples","test_qb_multiExm1.h5")
     data = Dataset_h5py_rr(data_path2, img_scale=2047.0, highpass=highpass)
+    batch_size = 1
+    dataloader = DataLoader(data, batch_size, num_workers=7, shuffle=False, persistent_workers=True)
     
-    dataloader = DataLoader(data, shuffle=False)
-    
-
-    trainer = Trainer()
+    wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix="qb")
+    trainer = Trainer(logger=wandb_logger)
     trainer.validate(model, dataloader)
 
 

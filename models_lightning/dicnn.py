@@ -47,7 +47,10 @@ class DICNN(L.LightningModule):
         loss = self.criterion(y_hat, y)   
         sam = self.sam(y_hat, y).rad2deg()
         ergas = self.ergas(y_hat, y)
-        self.log_dict({'validation_loss': loss, 'validation_sam': sam, 'validation_ergas': ergas})
+        self.log_dict({'training_loss': loss, 
+                       'training_sam': sam, 
+                       'training_ergas': ergas}, 
+                            on_step=True, on_epoch=True)
         return loss
     
     def validation_step(self, batch, batch_idx):
@@ -57,7 +60,10 @@ class DICNN(L.LightningModule):
         sam = self.sam(y_hat, y).rad2deg()
         ergas = self.ergas(y_hat, y)
         loss = self.criterion(y_hat, y)
-        self.log_dict({'validation_loss': loss, 'validation_sam': sam, 'validation_ergas': ergas})
+        self.log_dict({'validation_loss': loss, 
+                       'validation_sam': sam, 
+                       'validation_ergas': ergas}, 
+                            on_step=True, on_epoch=True)
         return loss
     
     def test_step(self, batch, batch_idx):
@@ -65,7 +71,7 @@ class DICNN(L.LightningModule):
 
         y = batch['gt']
         loss = self.criterion(y_hat, y)
-        self.log('train_loss', loss)
+        self.log('test_loss', loss)
         return loss
 
     def predict_step(self, batch, batch_idx):
