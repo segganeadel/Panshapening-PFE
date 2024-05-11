@@ -64,10 +64,10 @@ The downsampling method for the HRMS and Original PAN can be done diffrently:
 We can also use the MTF downsample method on the Original PAN image following these values to genrate the PAN image (Inplemented in V2 of the DLPan MTF generator):
 ```Python
     GNyq_dict_pan = {
-        'QB':       0.15
-        'IKONOS':   0.17
-        'GeoEye1':  0.16
-        'WV2':      0.11
+        'QB':       0.15,
+        'IKONOS':   0.17,
+        'GeoEye1':  0.16,
+        'WV2':      0.11,
         'WV3':      0.5
     }
 ```
