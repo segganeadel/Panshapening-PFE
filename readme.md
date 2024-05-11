@@ -174,7 +174,7 @@ The ERGAS (Error Relative Global Adimensional Synthesis) is a metric that is use
 its formula is as follows:
 
 $$
-\operatorname{ERGAS}=100 \frac{d_h}{d_l} \sqrt{\frac{1}{N} \sum_{n=1}^N\left(\frac{\operatorname{RMSE}(n)}{\mu(n)}\right)^2}
+\mathop{\text{ERGAS}}=100 \frac{d_h}{d_l} \sqrt{\frac{1}{N} \sum_{n=1}^N\left(\frac{\mathop{\text{RMSE}}(n)}{\mu(n)}\right)^2}
 $$
 
 where:
@@ -191,7 +191,7 @@ The Spectral Angle Mapper (SAM) is a metric that is used to evaluate the quality
 its formula is as follows:
 
 $$
-\operatorname{SAM}(\mathbf{x}, \hat{\mathbf{x}})=\arccos \left(\frac{\langle\mathbf{x}, \hat{\mathbf{x}}\rangle}{\|\mathbf{x}\|_2 \cdot\|\hat{\mathbf{x}}\|_2}\right)
+\mathop{\text{SAM}}(\mathbf{x}, \hat{\mathbf{x}})=\arccos \left(\frac{\langle\mathbf{x}, \hat{\mathbf{x}}\rangle}{\|\mathbf{x}\|_2 \cdot\|\hat{\mathbf{x}}\|_2}\right)
 $$
 
 # 3 - Model
