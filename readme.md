@@ -180,7 +180,7 @@ $$
 where:
   - $\frac{d_h}{d_l}$ : The ratio of high over resolution
   - $N$ : The number of bands in the image
-  - $\operatorname{RMSE}(n)$ : The RMSE of the $n^{th}$ band
+  - $\mathop{\text{RMSE}}(n)$ : The RMSE of the $n^{th}$ band
   - $\mu(n)$ : The mean value of the $n^{th}$ band
 
 **PS : in the DLpan implementation the ratio is flipped which gives a lower value**
