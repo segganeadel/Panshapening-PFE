@@ -45,7 +45,7 @@ def main(hparams):
     data_path2 = os.path.join(".","data","h5py","qb","reduced_examples","test_qb_multiExm1.h5")
     data = Dataset_h5py_rr(data_path2, img_scale=2047.0, highpass=highpass)
     batch_size = 1
-    dataloader = DataLoader(data, batch_size, num_workers=7, shuffle=False, persistent_workers=True)
+    dataloader = DataLoader(data, batch_size, num_workers=7, persistent_workers=True)
     
     wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix="qb")
     trainer = Trainer(logger=wandb_logger)
