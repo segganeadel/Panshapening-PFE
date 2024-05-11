@@ -70,7 +70,8 @@ We can also use the MTF downsample method on the Original PAN image following th
 ```
 [fast PyTorch implementation from Z-PNN](https://github.com/matciotola/Z-PNN/blob/master/input_prepocessing.py#L134)
 
-Then for each channel a kernel (filter) is generated we apply a depthwise convolution to the HRMS image using the kernel for each channel to result in the MS image followed by a bicubic interpolation to the desired resolution.
+Then for each channel a kernel (filter) is generated we apply a depthwise convolution to the HRMS image using the kernel for each channel to result in the MS image. In depthwise conv the kernel is applied to each channel seperatly, this is done to simulate the MTF of the sensor on each channel.
+We follow this by a bicubic interpolation to the desired resolution.
 ```Python
 # DepthWise-Conv2d definition
 depthconv = nn.Conv2d(in_channels=channels,
@@ -85,6 +86,9 @@ depthconv.weight.requires_grad = False
 ```
 ![alt text](assests/depthwise-convolution-animation-3x3-kernel.gif)
 
+This differs from a normal conv in which the kernel is applied to all channels at once.
+
+![alt text](assests/convolution-animation-3x3-kernel.gif)
 #### 1.1.2.3 Making the input block
 The input block is made by concatenating the PAN and MS images along the channel axis, this results in a MS+1 channels image that is used as input for the model but since the MS ans PAN images are of diffrent sizes we need to upsample the MS image to the same size as the PAN image.
 
