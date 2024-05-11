@@ -2,8 +2,6 @@
 *.h5
 #.mat data
 *.mat
-# images
-*.png
 #logs 
 lightning_logs/
 wandb/
