@@ -8,7 +8,10 @@
       - [1.1.2.2 Downsampling the data](#1122-downsampling-the-data)
       - [1.1.2.3 Making the input block](#1123-making-the-input-block)
     - [1.1.3 - Data feeding](#113---data-feeding)
-- [2 - Metrics](#2---metrics)
+    - [1.1.4 - Overall data flow](#114---overall-data-flow)
+- [2 - Metrics :](#2---metrics-)
+  - [1 - ERGAS :](#1---ergas-)
+  - [2 - SAM :](#2---sam-)
 - [3 - Model](#3---model)
 
 # 1 - Data
@@ -159,10 +162,36 @@ ms = ms if not self.highpass else ms - cv2.boxFilter(ms, -1, (5, 5))
 ...
 ```
 
+### 1.1.4 - Overall data flow
 ![alt text](assests/Untitled-2024-01-09-2129.svg)
-Overall data flow for the model.
 
-# 2 - Metrics
+# 2 - Metrics :
 
+## 1 - ERGAS :
+The ERGAS (Error Relative Global Adimensional Synthesis) is a metric that is used to evaluate the quality of the image, it is defined as the ratio of the Root Mean Square Error (RMSE) to the mean value of the image. It is used to evaluate the quality of the image in terms of the **spectral information**.
+
+
+its formula is as follows:
+
+$$
+\operatorname{ERGAS}=100 \frac{d_h}{d_l} \sqrt{\frac{1}{N} \sum_{n=1}^N\left(\frac{\operatorname{RMSE}(n)}{\mu(n)}\right)^2}
+$$
+
+where:
+  - $\frac{d_h}{d_l}$ : The ratio of high over resolution
+  - $N$ : The number of bands in the image
+  - $\operatorname{RMSE}(n)$ : The RMSE of the $n^{th}$ band
+  - $\mu(n)$ : The mean value of the $n^{th}$ band
+
+**PS : in the DLpan implementation the ratio is flipped which gives a lower value**
+
+## 2 - SAM :
+The Spectral Angle Mapper (SAM) is a metric that is used to evaluate the quality of the image, it is defined as the angle between the two vectors that represent the two images in the spectral space. It is used to evaluate the quality of the image in terms of the **spectral information**.
+
+its formula is as follows:
+
+$$
+\operatorname{SAM}(\mathbf{x}, \hat{\mathbf{x}})=\arccos \left(\frac{\langle\mathbf{x}, \hat{\mathbf{x}}\rangle}{\|\mathbf{x}\|_2 \cdot\|\hat{\mathbf{x}}\|_2}\right)
+$$
 
 # 3 - Model
