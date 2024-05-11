@@ -167,6 +167,9 @@ ms = ms if not self.highpass else ms - cv2.boxFilter(ms, -1, (5, 5))
 
 # 2 - Metrics :
 
+For reproducibility we use metric fucntions provided by torchmetrics (a library that provides metrics for pytorch) to evaluate the models. it provides most of the metrics but not all of them, so we need to implement the missing metrics.
+
+All the metrics that are used :
 ## 1 - ERGAS :
 The ERGAS (Error Relative Global Adimensional Synthesis) is a metric that is used to evaluate the quality of the image, it is defined as the ratio of the Root Mean Square Error (RMSE) to the mean value of the image. It is used to evaluate the quality of the image in terms of the **spectral information**.
 
@@ -183,6 +186,10 @@ where:
   - $\mathop{\text{RMSE}}(n)$ : The RMSE of the $n^{th}$ band
   - $\mu(n)$ : The mean value of the $n^{th}$ band
 
+The code for the ERGAS metric is as follows:
+```Python
+100 * ratio * torch.sqrt(torch.mean(torch.mean((ms_gt-ms_fus)**2,axis=(2,3))/(torch.mean(ms_gt, axis=(2,3)))**2))
+```
 **PS : in the DLpan implementation the ratio is flipped which gives a lower value**
 
 ## 2 - SAM :
@@ -193,5 +200,18 @@ its formula is as follows:
 $$
 \mathop{\text{SAM}}(\mathbf{x}, \hat{\mathbf{x}})=\arccos \left(\frac{\langle\mathbf{x}, \hat{\mathbf{x}}\rangle}{\|\mathbf{x}\|_2 \cdot\|\hat{\mathbf{x}}\|_2}\right)
 $$
-
+The code for the SAM metric is as follows:
+```Python
+    prod_scal = torch.sum(ms_gt * ms_fus, axis=1)
+    # Slightly different from the original equation, square root of the product of the sums not the product of the nomrs
+    norm_gt = torch.sum(ms_gt**2, axis=1)
+    norm_fus = torch.sum(ms_fus**2, axis=1)
+    lower_term = torch.sqrt(norm_gt * norm_fus)
+    lower_term = torch.where(lower_term == 0, epsilon, lower_term) # to avoid division by zero
+    SAM_map = torch.arccos(prod_scal/lower_term)
+    angolo = torch.mean(SAM_map, axis=(1,2))
+    SAM_index = torch.rad2deg(angolo)   
+    return SAM_index
+```
+**PS : The angle is in radians so in the DLpan implementation it is converted to degrees.**
 # 3 - Model
