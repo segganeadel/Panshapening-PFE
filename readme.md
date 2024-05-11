@@ -24,8 +24,11 @@ PanCollection provides already prepared **training**, **validation** and **test*
   - QuickBird
 
 There are two types of **test** data provided:
-  - Testing data at **Full Resolution** (FR) which is the original PAN and HRMS images (this is the **real way the model should be used**) no refrerence (GT) is available for this data.
-  - Testing data at **Reduced Resolution** (RR) which is the PAN and MS images (this is **the way the model is trained**) and the HRMS image (this is the GT) is available for this data. (the way this data is generated is explained in the next section).
+  - **Full Resolution** (FR) :
+  Which is the original PAN and HRMS images (this is the **real way the model should be used**) no refrerence (GT) is available for this data.
+  
+  - **Reduced Resolution** (RR) :
+  Which is the PAN and MS images (this is **the way the model is trained**) and the HRMS image (this is the GT) is available for this data. (the way this data is generated is explained in the next section).
 
 #### 1.1.1.2 - Other 
 Since we have already prepared data that has been used to train the list of models in the [DLPan](https://github.com/liangjiandeng/DLPan-Toolbox) we just need to understand and explain how the data was prepared. 
@@ -40,12 +43,12 @@ In order to train a model we need to provide an **input** (x) and a **refrence**
 
 - As **refrence** we can use only the **HRMS**, as the models outputs only the multispectral data.
 
-- As for the **input** we need to generate a degraded version of the **HRMS** that we will refer to as **MS** and a downsampled version of the **Original PAN** image that we refer to as **PAN**.
+- As for the **input** we need to generate a degraded version of the **HRMS** that we will refer to as **MS**. Also a downsampled version of the **Original PAN** image that we refer to as **PAN**.
 
 The downsampling method for the HRMS and Original PAN can be done diffrently:
 - for the Original PAN, an ideal filter (bicubic interpolation) can be used this results in the PAN image (in our case being downsampled by a factor of 4).
 
-- for the HRMS we apply an MTF (Modulation Transfer Function) to it, provided that the Nyquist frequency for each channel in data from a certain sensor is known we generate a filter that will be applied to the HRMS image to **simulate the degradation that would be caused by the sensor** this mainly why this method is applied. This results in the MS image. 
+- for the HRMS we apply an MTF (Modulation Transfer Function) to it, provided that the Nyquist frequency for each channel in data from a certain sensor is known we can generate a filter that will be applied to the HRMS image to **simulate the degradation that would be caused by the sensor** this mainly why this method is applied. This results in the **(MS)** image. 
 ```Python
     GNyq_dict_ms = {
         'QB':       [0.34,  0.32,  0.30,  0.22], # Band Order: B,G,R,NIR
@@ -88,7 +91,23 @@ The input block is made by concatenating the PAN and MS images along the channel
 The upsampling of the MS image can be done by using the 23-tap interpolation method to to result an **UMS** image of the same size as the PAN image in height and width.
 
 ### 1.1.3 - Data feeding
-After normalizing by the higherst value in the images (provided by user), the data is fed to the model in the form of a dictionary using a dataloader each return of the dataloader is a dictionary containing the PAN, MS, LMS and optionally GT images.
+After normalizing by the highest values in the images (provided by user).
+```Python
+lms = self.lms[index]
+lms /= self.img_scale
+
+pan = self.pan[index]
+pan =  pan if not self.highpass else pan - cv2.boxFilter(pan, -1, (5, 5))
+pan /= self.img_scale
+
+ms = self.ms[index]
+ms = ms if not self.highpass else ms - cv2.boxFilter(ms, -1, (5, 5))
+ms /= self.img_scale
+
+gt = self.gt[index]
+gt /= self.img_scale
+```
+The data is fed to the model in the form of a dictionary using a dataloader each return of the dataloader is a dictionary containing the PAN, MS, LMS and optionally GT images.
 Where :
 
 
@@ -119,9 +138,27 @@ return {
 
 Notice that in full resolution data we don't have a GT image, this is becuase the HRMS image that is used in input is the highest resolution available so there is nothing to compare to.
 
+Also notice that because pytorch default precision is float32 we need to convert the images to float32 before feeding them to the model as numpy's default precision is float 64.
 
+For each dictonary every entry contains a tensor of shape (B x C x H x W) where:
+- B : Batch size defined in dataloader
+- C : Number of channels in the image
+- H : Height of the image
+- W : Width of the image
 
+Note : for the pannet model we need a highpass version of the PAN image, this is done by subtracting the image from a box filter of the same image with a kernel size of (5,5) this is done to remove the low frequency components of the image, this why the highpass flag is used in the dataloader here: 
+```Python
+...
+pan =  pan if not self.highpass else pan - cv2.boxFilter(pan, -1, (5, 5))
+...
+ms = ms if not self.highpass else ms - cv2.boxFilter(ms, -1, (5, 5))
+...
+```
 
+![alt text](assests/Untitled-2024-01-09-2129.svg)
+Overall data flow for the model.
 
 # 2 - Metrics
+
+
 # 3 - Model
