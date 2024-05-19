@@ -1,7 +1,11 @@
 import torch
 import torch.nn as nn
 import lightning as L
-from torchmetrics.image import SpectralAngleMapper, ErrorRelativeGlobalDimensionlessSynthesis
+import torch.nn.functional as F
+from metrics_torch.ERGAS_TORCH import ergas_torch
+from metrics_torch.SAM_TORCH import sam_torch
+
+
 
 ##############################################################################################################
 class Resblock(nn.Module):
@@ -26,16 +30,13 @@ class PanNet(L.LightningModule):
         self.reg = reg
 
         # ConvTranspose2d: output = (input - 1)*stride + outpading - 2*padding + kernelsize
-        self.deconv = nn.ConvTranspose2d(in_channels=spectral_num,  out_channels=spectral_num,  kernel_size=8, stride=4,padding=2)
-        self.conv1 = nn.Conv2d(in_channels=spectral_num + 1,        out_channels=channel,       kernel_size=3, stride=1, padding=1)
-        
+        self.deconv = nn.ConvTranspose2d(in_channels=spectral_num,  out_channels=spectral_num,  kernel_size=8, stride=4, padding=2)
+        self.conv1 = nn.Conv2d(in_channels=spectral_num + 1,        out_channels=channel,       kernel_size=3, stride=1, padding=1)  
         self.res1 = Resblock()
         self.res2 = Resblock()
         self.res3 = Resblock()
         self.res4 = Resblock()
-
         self.conv3 = nn.Conv2d(in_channels=channel,                 out_channels=spectral_num,  kernel_size=3, stride=1, padding=1)
-
         self.relu = nn.ReLU(inplace=True)
 
         self.backbone = nn.Sequential(  # method 2: 4 resnet repeated blocks
@@ -45,12 +46,6 @@ class PanNet(L.LightningModule):
             self.res4
         )
 
-        ##############################################################################################################
-        # criterion
-        self.criterion = nn.MSELoss()
-        # metrics
-        self.sam = SpectralAngleMapper()
-        self.ergas = ErrorRelativeGlobalDimensionlessSynthesis(0.25)
 
     def forward(self, input):# x= hp of ms; y = hp of pan
         pan = input["pan"]
@@ -73,37 +68,47 @@ class PanNet(L.LightningModule):
         y_hat = self(batch)
 
         y = batch['gt']
-        loss = self.criterion(y_hat, y)   
-        sam = self.sam(y_hat, y).rad2deg()
-        ergas = self.ergas(y_hat, y)
-        self.log_dict({'training_loss': loss, 
-                       'training_sam': sam, 
-                       'training_ergas': ergas}, 
-                            on_step=True, on_epoch=True)
+        loss = torch.nn.functional.mse_loss(y_hat, y)
+        with torch.no_grad():
+            ergas = ergas_torch(y_hat, y) 
+            sam = sam_torch(y_hat, y)
+            self.log_dict({'training_loss': loss, 
+                        'training_sam':   sam, 
+                        'training_ergas': ergas}, 
+                            prog_bar=True)
         return loss
     
     def validation_step(self, batch, batch_idx):
         y_hat = self(batch)
 
         y = batch['gt']
-        sam = self.sam(y_hat, y).rad2deg()
-        ergas = self.ergas(y_hat, y)
-        loss = self.criterion(y_hat, y)
-        self.log_dict({'validation_loss': loss, 
-                       'validation_sam': sam, 
-                       'validation_ergas': ergas}, 
-                            on_step=True, on_epoch=True)
+        loss = torch.nn.functional.mse_loss(y_hat, y)
+        with torch.no_grad():
+            ergas = ergas_torch(y_hat, y)  
+            sam = sam_torch(y_hat, y)
+            self.log_dict({'validation_loss':  loss, 
+                        'validation_sam':   sam, 
+                        'validation_ergas': ergas}, 
+                            prog_bar=True)
         return loss
     
     def test_step(self, batch, batch_idx):
         y_hat = self(batch)
 
         y = batch['gt']
-        loss = self.criterion(y_hat, y)
-        self.log('test_loss', loss)
+        loss = torch.nn.functional.mse_loss(y_hat, y)
+
+        with torch.no_grad():
+            sam = sam_torch(y_hat, y)
+            ergas = ergas_torch(y_hat, y)  
+            self.log_dict({'test_loss':  loss, 
+                        'test_sam':   sam, 
+                        'test_ergas': ergas}, 
+                            prog_bar=True)
         return loss
 
     def predict_step(self, batch, batch_idx):
         x = batch
         preds = self(x)
         return preds
+    

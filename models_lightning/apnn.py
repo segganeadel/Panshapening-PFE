@@ -1,6 +1,11 @@
 import torch
 import torch.nn as nn
 import lightning as L
+import torch.nn.functional as F
+from metrics_torch.ERGAS_TORCH import ergas_torch
+from metrics_torch.SAM_TORCH import sam_torch
+
+
 
 class APNN(L.LightningModule):
     def __init__(self, spectral_num):
@@ -33,4 +38,51 @@ class APNN(L.LightningModule):
 
         return output
 
+    def training_step(self, batch, batch_idx):
+        y_hat = self(batch)
+
+        y = batch['gt']
+        loss = torch.nn.functional.mse_loss(y_hat, y)
+        with torch.no_grad():
+            ergas = ergas_torch(y_hat, y) 
+            sam = sam_torch(y_hat, y)
+            self.log_dict({'training_loss': loss, 
+                        'training_sam':   sam, 
+                        'training_ergas': ergas}, 
+                            prog_bar=True)
+        return loss
+    
+    def validation_step(self, batch, batch_idx):
+        y_hat = self(batch)
+
+        y = batch['gt']
+        loss = torch.nn.functional.mse_loss(y_hat, y)
+        with torch.no_grad():
+            ergas = ergas_torch(y_hat, y)  
+            sam = sam_torch(y_hat, y)
+            self.log_dict({'validation_loss':  loss, 
+                        'validation_sam':   sam, 
+                        'validation_ergas': ergas}, 
+                            prog_bar=True)
+        return loss
+    
+    def test_step(self, batch, batch_idx):
+        y_hat = self(batch)
+
+        y = batch['gt']
+        loss = torch.nn.functional.mse_loss(y_hat, y)
+
+        with torch.no_grad():
+            sam = sam_torch(y_hat, y)
+            ergas = ergas_torch(y_hat, y)  
+            self.log_dict({'test_loss':  loss, 
+                        'test_sam':   sam, 
+                        'test_ergas': ergas}, 
+                            prog_bar=True)
+        return loss
+
+    def predict_step(self, batch, batch_idx):
+        x = batch
+        preds = self(x)
+        return preds
     

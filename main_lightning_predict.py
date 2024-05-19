@@ -1,7 +1,5 @@
 from argparse import ArgumentParser
 
-import torch
-
 from models_lightning.apnn import APNN
 from models_lightning.bdpn import BDPN
 from models_lightning.dicnn import DICNN
@@ -10,12 +8,13 @@ from models_lightning.fusionnet import FusionNet
 from models_lightning.msdcnn import MSDCNN
 from models_lightning.pannet import PanNet
 from models_lightning.pnn import PNN
+
+import torch
 import os
-
+from datamodule_mat import PANDataModule
 from lightning import Trainer
+from lightning.pytorch.loggers import WandbLogger, CSVLogger
 
-from torch.utils.data import DataLoader
-from dataloader import Dataset_h5py_fr, Dataset_h5py_rr
 import cv2 as cv
 
 
@@ -32,25 +31,26 @@ def main(hparams):
         "pnn":(PNN,"pnn.pth",False)
     }
 
-    # Choose the model
-    model_name = "pannet"
+    model_name = "pnn" # "apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn"
     model, weights_path, highpass = models.get(model_name)
-    weights_path = os.path.join(".","weights","QB", weights_path) 
-    
-    model = model(4)
-    model.load_state_dict(torch.load(weights_path))
+    weights_path = os.path.join(".", "weights", "QB", weights_path)
 
-    data_path1 = os.path.join(".","data","h5py","qb","full_examples","test_qb_OrigScale_multiExm1.h5")
-    data = Dataset_h5py_fr(data_path1, img_scale=2047.0, highpass=highpass)
+    satelite = "qb"
+    data_dir = os.path.join(".","data","mat",satelite)   
+    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 7, shuffle_train = False, batch_size = 1)
 
-    # data_path2 = os.path.join(".","data","h5py","qb","reduced_examples","test_qb_multiExm1.h5")
-    # data = Dataset_h5py_rr(data_path2, img_scale=2047.0, highpass=highpass)
+    wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix=satelite)
+    csv_logger = CSVLogger(".")
+    trainer = Trainer(logger=[wandb_logger, csv_logger], 
+                      max_epochs=3)
     
-    dataloader = DataLoader(data, shuffle=False, batch_size=2)
-    
+    num_channels = 4 if satelite == "qb" else 8
 
-    trainer = Trainer()
-    results = trainer.predict(model, dataloader)
+    model = model.load_from_checkpoint("./PanSharpening/zyt6muug/checkpoints/epoch=9-step=2680.ckpt", spectral_num=num_channels)
+    # model = model(num_channels)
+    # model.load_state_dict(torch.load(weights_path))
+
+    results = trainer.predict(model, datamodule)
 
     for index ,result in enumerate(results):
         print(result.shape)
@@ -62,10 +62,8 @@ def generate_image_out (image_out, batch_n, model_name):
     for index, image in enumerate(image_out):    
         print(image.shape, "image_out")
         print(image.max())
-        path_out = f"out1/{model_name}/image_out_{count + index}.png"
+        path_out = f"out/image_out_{count + index}.png"
         cv.imwrite(path_out, image)
-
-
 
 
 if __name__ == "__main__":
