@@ -66,7 +66,6 @@ class Dataset_mat_fr(Dataset):
         file = self.files[index]
         data = loadmat(os.path.join(self.dir_path, file))
 
-
         lms = data["lms"]
         lms /= self.img_scale
         
@@ -78,7 +77,6 @@ class Dataset_mat_fr(Dataset):
         ms = ms if not self.highpass else ms - cv2.boxFilter(ms, -1, (5, 5))
         ms /= self.img_scale
 
-        print("dataloader shape", pan.shape, ms.shape, lms.shape)
         return {
             'ms':ms.astype(np.float32),
             'lms':lms.astype(np.float32),

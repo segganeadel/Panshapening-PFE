@@ -31,7 +31,7 @@ def main(hparams):
         "pnn":(PNN,"pnn.pth",False)
     }
 
-    model_name = "pnn" # "apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn"
+    model_name = "fusionnet" # "apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn"
     model, weights_path, highpass = models.get(model_name)
     weights_path = os.path.join(".", "weights", "QB", weights_path)
 
@@ -46,11 +46,12 @@ def main(hparams):
     
     num_channels = 4 if satelite == "qb" else 8
 
-    model = model.load_from_checkpoint("./PanSharpening/zyt6muug/checkpoints/epoch=9-step=2680.ckpt", spectral_num=num_channels)
+    model = model.load_from_checkpoint("./PanSharpening/hbqnqyh9/checkpoints/epoch=9-step=5360.ckpt", spectral_num=num_channels)
     # model = model(num_channels)
     # model.load_state_dict(torch.load(weights_path))
 
     results = trainer.predict(model, datamodule)
+    os.makedirs("out", exist_ok=True)
 
     for index ,result in enumerate(results):
         print(result.shape)

@@ -25,7 +25,7 @@ def sam_torch(ms_fus:torch.Tensor, ms_gt:torch.Tensor, epsilon= 2 * 10**(-16)) -
     lower_term = torch.sqrt(norm_gt * norm_fus)
     
     lower_term = torch.where(lower_term == 0, epsilon, lower_term) # to avoid division by zero
-    SAM_map = torch.arccos(prod_scal/lower_term)
+    SAM_map = torch.arccos((prod_scal/lower_term).clip(min=0,max=1))
 
     angolo = torch.mean(SAM_map)
     SAM_index = torch.rad2deg(angolo)
