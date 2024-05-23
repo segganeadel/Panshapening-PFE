@@ -1,13 +1,13 @@
 from argparse import ArgumentParser
 
-from models_lightning.apnn import APNN
-from models_lightning.bdpn import BDPN
-from models_lightning.dicnn import DICNN
-from models_lightning.drpnn import DRPNN
-from models_lightning.fusionnet import FusionNet
-from models_lightning.msdcnn import MSDCNN
-from models_lightning.pannet import PanNet
-from models_lightning.pnn import PNN
+from models.apnn import APNN
+from models.bdpn import BDPN
+from models.dicnn import DICNN
+from models.drpnn import DRPNN
+from models.fusionnet import FusionNet
+from models.msdcnn import MSDCNN
+from models.pannet import PanNet
+from models.pnn import PNN
 
 import torch
 import os
