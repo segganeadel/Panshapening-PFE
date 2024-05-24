@@ -6,16 +6,13 @@ import lightning as L
 import torch.nn.functional as F
 from metrics_torch.ERGAS_TORCH import ergas_torch
 from metrics_torch.SAM_TORCH import sam_torch
-from .mamba_helper.vssm import VSSM
+from .mamba_helper.vssm import MambaIR
 
 class MambFuse(L.LightningModule):
     def __init__(self, spectral_num, channel=32):
         super(MambFuse, self).__init__()
-        self.vssm = VSSM(
-            patch_size= 4,
-            in_chans= spectral_num,
-            depths= [2,2,2,2],
-        )
+        self.spectral_num = spectral_num
+        self.vssm = MambaIR()
 
     def forward(self, input):
         lms = input['lms']
