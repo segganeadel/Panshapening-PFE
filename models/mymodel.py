@@ -6,7 +6,7 @@ import lightning as L
 import torch.nn.functional as F
 from metrics_torch.ERGAS_TORCH import ergas_torch
 from metrics_torch.SAM_TORCH import sam_torch
-from .mamba_helper.vssm import MambaIR
+from .mamba_helper.mamba import MambaIR
 
 class MambFuse(L.LightningModule):
     def __init__(self, spectral_num, channel=32):
