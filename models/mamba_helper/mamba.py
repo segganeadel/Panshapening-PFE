@@ -291,7 +291,6 @@ class BasicLayer(nn.Module):
         drop_path (float | tuple[float], optional): Stochastic depth rate. Default: 0.0
         norm_layer (nn.Module, optional): Normalization layer. Default: nn.LayerNorm
         downsample (nn.Module | None, optional): Downsample layer at the end of the layer. Default: None
-        use_checkpoint (bool): Whether to use checkpointing to save memory. Default: False.
     """
 
     def __init__(self,
@@ -303,14 +302,14 @@ class BasicLayer(nn.Module):
                  mlp_ratio=2.,
                  norm_layer=nn.LayerNorm,
                  downsample=None,
-                 use_checkpoint=False,is_light_sr=False):
+                 use_checkpoint=False,
+                 is_light_sr=False):
 
         super().__init__()
         self.dim = dim
         self.input_resolution = input_resolution
         self.depth = depth
         self.mlp_ratio=mlp_ratio
-        self.use_checkpoint = use_checkpoint
 
         # build blocks
         self.blocks = nn.ModuleList()
@@ -332,12 +331,11 @@ class BasicLayer(nn.Module):
 
     def forward(self, x, x_size):
         for blk in self.blocks:
-            if self.use_checkpoint:
-                x = checkpoint.checkpoint(blk, x)
-            else:
-                x = blk(x, x_size)
+            x = blk(x, x_size)
+
         if self.downsample is not None:
             x = self.downsample(x)
+
         return x
 
     def extra_repr(self) -> str:
@@ -354,7 +352,6 @@ class ResidualGroup(nn.Module):
         drop_path (float | tuple[float], optional): Stochastic depth rate. Default: 0.0
         norm_layer (nn.Module, optional): Normalization layer. Default: nn.LayerNorm
         downsample (nn.Module | None, optional): Downsample layer at the end of the layer. Default: None
-        use_checkpoint (bool): Whether to use checkpointing to save memory. Default: False.
         img_size: Input image size.
         patch_size: Patch size.
         resi_connection: The convolutional block before residual connection.
@@ -369,7 +366,6 @@ class ResidualGroup(nn.Module):
                  drop_path=0.,
                  norm_layer=nn.LayerNorm,
                  downsample=None,
-                 use_checkpoint=False,
                  img_size=None,
                  patch_size=None,
                  resi_connection='1conv',
@@ -388,7 +384,6 @@ class ResidualGroup(nn.Module):
             drop_path=drop_path,
             norm_layer=norm_layer,
             downsample=downsample,
-            use_checkpoint=use_checkpoint,
             is_light_sr = is_light_sr)
 
         # build the last conv layer in each residual state space group
@@ -399,7 +394,7 @@ class ResidualGroup(nn.Module):
             self.conv = nn.Sequential(
                 nn.Conv2d(dim, dim // 4, 3, 1, 1), nn.LeakyReLU(negative_slope=0.2, inplace=True),
                 nn.Conv2d(dim // 4, dim // 4, 1, 1, 0), nn.LeakyReLU(negative_slope=0.2, inplace=True),
-                nn.Conv2d(dim // 4, dim, 3, 1, 1))
+                nn.Conv2d(dim // 4, dim, 3, 1, 1))  
 
         self.patch_embed = PatchEmbed(
             img_size=img_size, patch_size=patch_size, in_chans=0, embed_dim=dim, norm_layer=None)
@@ -409,7 +404,6 @@ class ResidualGroup(nn.Module):
 
     def forward(self, x, x_size):
         return self.patch_embed(self.conv(self.patch_unembed(self.residual_group(x, x_size), x_size))) + x
-
 
 class PatchEmbed(nn.Module):
     r""" transfer 2D feature map into 1D token sequence
@@ -513,7 +507,7 @@ class Upsample(nn.Sequential):
         super(Upsample, self).__init__(*m)
 
 
-class MambaIR(nn.Module):
+class cobraFusion(nn.Module):
     r""" MambaIR Model
            A PyTorch impl of : `A Simple Baseline for Image Restoration with State Space Model `.
 
@@ -528,7 +522,6 @@ class MambaIR(nn.Module):
            drop_path_rate (float): Stochastic depth rate. Default: 0.1
            norm_layer (nn.Module): Normalization layer. Default: nn.LayerNorm.
            patch_norm (bool): If True, add normalization after patch embedding. Default: True
-           use_checkpoint (bool): Whether to use checkpointing to save memory. Default: False
            upscale: Upscale factor. 2/3/4 for image SR, 1 for denoising
            img_range: Image range. 1. or 255.
            upsampler: The reconstruction reconstruction module. 'pixelshuffle'/None
@@ -539,29 +532,24 @@ class MambaIR(nn.Module):
                  patch_size=1,
                  in_chans=4,
                  embed_dim=96,
-                 depths=(6, 6, 6, 6),
+                 depths=(3, 3, 3),
                  drop_rate=0.,
                  d_state = 16,
                  mlp_ratio=2.,
                  drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm,
                  patch_norm=True,
-                 use_checkpoint=False,
                  upscale=2,
                  img_range=1.,
                  upsampler='',
                  resi_connection='1conv',
                  **kwargs):
-        super(MambaIR, self).__init__()
+        super(cobraFusion, self).__init__()
         num_in_ch = in_chans
         num_out_ch = in_chans
         num_feat = 64
         self.img_range = img_range
-        if in_chans == 3:
-            rgb_mean = (0.4488, 0.4371, 0.4040)
-            self.mean = torch.Tensor(rgb_mean).view(1, 3, 1, 1)
-        else:
-            self.mean = torch.zeros(1, 1, 1, 1)
+        self.mean = torch.zeros(1, 1, 1, 1)
         self.upscale = upscale
         self.upsampler = upsampler
         self.mlp_ratio=mlp_ratio
@@ -610,7 +598,6 @@ class MambaIR(nn.Module):
                 drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],  # no impact on SR results
                 norm_layer=norm_layer,
                 downsample=None,
-                use_checkpoint=use_checkpoint,
                 img_size=img_size,
                 patch_size=patch_size,
                 resi_connection=resi_connection,
