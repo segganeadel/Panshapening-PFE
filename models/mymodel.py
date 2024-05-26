@@ -15,14 +15,13 @@ class MambFuse(L.LightningModule):
         self.vssm = MambaIR()
 
     def forward(self, input):
-        lms = input['lms']
-        pan = input['pan']
+        # lms = input['lms']
+        # pan = input['pan']
 
-        pan_concat = pan.repeat(1, self.spectral_num, 1, 1)  # Bsx8x64x64
-        diff = torch.sub(pan_concat, lms)
+        # pan_concat = pan.repeat(1, self.spectral_num, 1, 1)  # Bsx8x64x64
+        # diff = torch.sub(pan_concat, lms)
         
-        out = self.vssm(diff)
-        print ("out shape", out.shape)
+        out = self.vssm(input)
         return out
 
             
