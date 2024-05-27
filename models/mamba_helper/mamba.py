@@ -280,7 +280,7 @@ class VSSM(nn.Module):
         # Linear projection
         out = self.out_proj(y)
 
-        
+
         if self.dropout is not None:
             out = self.dropout(out)
 
@@ -376,7 +376,7 @@ class cobraFusion(nn.Module):
                  patch_size=1,
                  in_chans=4,
                  embed_dim=96,
-                 depths=(3, 3, 3),
+                 depths=(2, 2),
                  drop_rate=0.,
                  d_state = 16,
                  mlp_ratio=2.,
