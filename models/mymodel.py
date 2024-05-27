@@ -21,7 +21,7 @@ class MambFuse(L.LightningModule):
         pan_concat = pan.repeat(1, self.spectral_num, 1, 1)  # Bsx8x64x64
         diff = torch.sub(pan_concat, lms)
         
-        out = self.deepfusion(input)
+        out = self.deepfusion(diff)
         return out
 
             
