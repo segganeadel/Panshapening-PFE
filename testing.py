@@ -33,7 +33,7 @@ def main(hparams):
     # model = model(num_channels)
     # model.load_state_dict(torch.load(weights_path))
     
-    # trainer.test(model, datamodule)
+    trainer.test(model, datamodule)
 
 
 if __name__ == "__main__":
