@@ -2,14 +2,61 @@
 import math
 import torch
 import torch.nn as nn
-import torch.utils.checkpoint as checkpoint
 import torch.nn.functional as F
 from functools import partial
 from typing import Optional, Callable
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
-from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, selective_scan_ref
+from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
 from einops import rearrange, repeat
 
+class PatchEmbed(nn.Module):
+    def __init__(self, 
+                 img_size=224, 
+                 patch_size=4, 
+                 in_chans=3, 
+                 embed_dim=96, 
+                 norm_layer=None):
+        super().__init__()
+        img_size = to_2tuple(img_size)
+        patch_size = to_2tuple(patch_size)
+        patches_resolution = [img_size[0] // patch_size[0], img_size[1] // patch_size[1]]
+        self.img_size = img_size
+        self.patch_size = patch_size
+        self.patches_resolution = patches_resolution
+        self.num_patches = patches_resolution[0] * patches_resolution[1]
+
+        self.in_chans = in_chans
+        self.embed_dim = embed_dim
+
+        if norm_layer is not None:
+            self.norm = norm_layer(embed_dim)
+        else:
+            self.norm = None
+
+    def forward(self, x):
+        x = x.flatten(2).transpose(1, 2)  # b Ph*Pw c
+        if self.norm is not None:
+            x = self.norm(x)
+        return x
+
+class PatchUnEmbed(nn.Module):
+
+    def __init__(self, img_size=224, patch_size=4, in_chans=3, embed_dim=96, norm_layer=None):
+        super().__init__()
+        img_size = to_2tuple(img_size)
+        patch_size = to_2tuple(patch_size)
+        patches_resolution = [img_size[0] // patch_size[0], img_size[1] // patch_size[1]]
+        self.img_size = img_size
+        self.patch_size = patch_size
+        self.patches_resolution = patches_resolution
+        self.num_patches = patches_resolution[0] * patches_resolution[1]
+
+        self.in_chans = in_chans
+        self.embed_dim = embed_dim
+
+    def forward(self, x, x_size):
+        x = x.transpose(1, 2).view(x.shape[0], self.embed_dim, x_size[0], x_size[1])  # b Ph*Pw c
+        return x
 
 class ChannelAttention(nn.Module):
     """Channel attention used in RCAN.
@@ -31,7 +78,6 @@ class ChannelAttention(nn.Module):
         y = self.attention(x)
         return x * y
 
-
 class CAB(nn.Module):
     def __init__(self, num_feat, is_light_sr= False, compress_ratio=3,squeeze_factor=30):
         super(CAB, self).__init__()
@@ -48,26 +94,7 @@ class CAB(nn.Module):
         return self.cab(x)
 
 
-class Mlp(nn.Module):
-    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
-        super().__init__()
-        out_features = out_features or in_features
-        hidden_features = hidden_features or in_features
-        self.fc1 = nn.Linear(in_features, hidden_features)
-        self.act = act_layer()
-        self.fc2 = nn.Linear(hidden_features, out_features)
-        self.drop = nn.Dropout(drop)
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = self.act(x)
-        x = self.drop(x)
-        x = self.fc2(x)
-        x = self.drop(x)
-        return x
-
-
-class SS2D(nn.Module):
+class VSSM(nn.Module):
     def __init__(
             self,
             d_model,
@@ -106,7 +133,7 @@ class SS2D(nn.Module):
             padding=(d_conv - 1) // 2,
             **factory_kwargs,
         )
-        self.act = nn.SiLU()
+
 
         self.x_proj = (
             nn.Linear(self.d_inner, (self.dt_rank + self.d_state * 2), bias=False, **factory_kwargs),
@@ -197,7 +224,7 @@ class SS2D(nn.Module):
         D._no_weight_decay = True
         return D
 
-    def forward_core(self, x: torch.Tensor):
+    def ss2d(self, x: torch.Tensor):
         B, C, H, W = x.shape
         L = H * W
         K = 4
@@ -232,24 +259,34 @@ class SS2D(nn.Module):
     def forward(self, x: torch.Tensor, **kwargs):
         B, H, W, C = x.shape
 
+        # Linear projection
         xz = self.in_proj(x)
+
+        # Split x and z
         x, z = xz.chunk(2, dim=-1)
 
+        # Chunk 1
         x = x.permute(0, 3, 1, 2).contiguous()
-        x = self.act(self.conv2d(x))
-        y1, y2, y3, y4 = self.forward_core(x)
+        x = F.silu(self.conv2d(x))
+        y1, y2, y3, y4 = self.ss2d(x)
         assert y1.dtype == torch.float32
         y = y1 + y2 + y3 + y4
-        y = torch.transpose(y, dim0=1, dim1=2).contiguous().view(B, H, W, -1)
+        y = torch.transpose(y, dim0=1, dim1=2).contiguous().view(B, H, W, -1) 
+        # Nomralization
         y = self.out_norm(y)
+
+        # Chunk 2 trough skip connection
         y = y * F.silu(z)
+        # Linear projection
         out = self.out_proj(y)
+
+        
         if self.dropout is not None:
             out = self.dropout(out)
+
         return out
 
-
-class VSSBlock(nn.Module):
+class RSSBlock(nn.Module):
     def __init__(
             self,
             hidden_dim: int = 0,
@@ -263,7 +300,12 @@ class VSSBlock(nn.Module):
     ):
         super().__init__()
         self.ln_1 = norm_layer(hidden_dim)
-        self.self_attention = SS2D(d_model=hidden_dim, d_state=d_state,expand=expand,dropout=attn_drop_rate, **kwargs)
+        self.ss2d = VSSM(d_model=hidden_dim, 
+                         d_state=d_state,
+                         expand=expand,
+                         dropout=attn_drop_rate, 
+                         **kwargs)
+        
         self.drop_path = DropPath(drop_path)
         self.skip_scale= nn.Parameter(torch.ones(hidden_dim))
         self.conv_blk = CAB(hidden_dim,is_light_sr)
@@ -274,89 +316,16 @@ class VSSBlock(nn.Module):
         # x [B,HW,C]
         B, L, C = input.shape
         input = input.view(B, *x_size, C).contiguous()  # [B,H,W,C]
+        # Layer normalization
         x = self.ln_1(input)
-        x = input*self.skip_scale + self.drop_path(self.self_attention(x))
+        # skip connection * scale + drop path (stochastic depth) of selective scan
+        x = input * self.skip_scale + self.drop_path(self.ss2d(x))
+
         x = x*self.skip_scale2 + self.conv_blk(self.ln_2(x).permute(0, 3, 1, 2).contiguous()).permute(0, 2, 3, 1).contiguous()
         x = x.view(B, -1, C).contiguous()
         return x
 
-
-class BasicLayer(nn.Module):
-    """ The Basic MambaIR Layer in one Residual State Space Group
-    Args:
-        dim (int): Number of input channels.
-        input_resolution (tuple[int]): Input resolution.
-        depth (int): Number of blocks.
-        mlp_ratio (float): Ratio of mlp hidden dim to embedding dim.
-        drop_path (float | tuple[float], optional): Stochastic depth rate. Default: 0.0
-        norm_layer (nn.Module, optional): Normalization layer. Default: nn.LayerNorm
-        downsample (nn.Module | None, optional): Downsample layer at the end of the layer. Default: None
-    """
-
-    def __init__(self,
-                 dim,
-                 input_resolution,
-                 depth,
-                 drop_path=0.,
-                 d_state=16,
-                 mlp_ratio=2.,
-                 norm_layer=nn.LayerNorm,
-                 downsample=None,
-                 use_checkpoint=False,
-                 is_light_sr=False):
-
-        super().__init__()
-        self.dim = dim
-        self.input_resolution = input_resolution
-        self.depth = depth
-        self.mlp_ratio=mlp_ratio
-
-        # build blocks
-        self.blocks = nn.ModuleList()
-        for i in range(depth):
-            self.blocks.append(VSSBlock(
-                hidden_dim=dim,
-                drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-                norm_layer=nn.LayerNorm,
-                attn_drop_rate=0,
-                d_state=d_state,
-                expand=self.mlp_ratio,
-                input_resolution=input_resolution,is_light_sr=is_light_sr))
-
-        # patch merging layer
-        if downsample is not None:
-            self.downsample = downsample(input_resolution, dim=dim, norm_layer=norm_layer)
-        else:
-            self.downsample = None
-
-    def forward(self, x, x_size):
-        for blk in self.blocks:
-            x = blk(x, x_size)
-
-        if self.downsample is not None:
-            x = self.downsample(x)
-
-        return x
-
-    def extra_repr(self) -> str:
-        return f'dim={self.dim}, input_resolution={self.input_resolution}, depth={self.depth}'
-
-class ResidualGroup(nn.Module):
-    """Residual State Space Group (RSSG).
-
-    Args:
-        dim (int): Number of input channels.
-        input_resolution (tuple[int]): Input resolution.
-        depth (int): Number of blocks.
-        mlp_ratio (float): Ratio of mlp hidden dim to embedding dim.
-        drop_path (float | tuple[float], optional): Stochastic depth rate. Default: 0.0
-        norm_layer (nn.Module, optional): Normalization layer. Default: nn.LayerNorm
-        downsample (nn.Module | None, optional): Downsample layer at the end of the layer. Default: None
-        img_size: Input image size.
-        patch_size: Patch size.
-        resi_connection: The convolutional block before residual connection.
-    """
-
+class RSSGroup(nn.Module):
     def __init__(self,
                  dim,
                  input_resolution,
@@ -365,36 +334,29 @@ class ResidualGroup(nn.Module):
                  mlp_ratio=4.,
                  drop_path=0.,
                  norm_layer=nn.LayerNorm,
-                 downsample=None,
                  img_size=None,
                  patch_size=None,
-                 resi_connection='1conv',
                  is_light_sr = False):
-        super(ResidualGroup, self).__init__()
+        super(RSSGroup, self).__init__()
 
         self.dim = dim
         self.input_resolution = input_resolution # [64, 64]
 
-        self.residual_group = BasicLayer(
-            dim=dim,
-            input_resolution=input_resolution,
-            depth=depth,
-            d_state = d_state,
-            mlp_ratio=mlp_ratio,
-            drop_path=drop_path,
-            norm_layer=norm_layer,
-            downsample=downsample,
-            is_light_sr = is_light_sr)
+        self.blocks = nn.ModuleList()
+        for i in range(depth):
+            self.blocks.append(RSSBlock(
+                hidden_dim=dim,
+                drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                norm_layer=nn.LayerNorm,
+                attn_drop_rate=0,
+                d_state=d_state,
+                expand=self.mlp_ratio,
+                input_resolution=input_resolution,
+                is_light_sr=is_light_sr))
+
 
         # build the last conv layer in each residual state space group
-        if resi_connection == '1conv':
-            self.conv = nn.Conv2d(dim, dim, 3, 1, 1)
-        elif resi_connection == '3conv':
-            # to save parameters and memory
-            self.conv = nn.Sequential(
-                nn.Conv2d(dim, dim // 4, 3, 1, 1), nn.LeakyReLU(negative_slope=0.2, inplace=True),
-                nn.Conv2d(dim // 4, dim // 4, 1, 1, 0), nn.LeakyReLU(negative_slope=0.2, inplace=True),
-                nn.Conv2d(dim // 4, dim, 3, 1, 1))  
+        self.conv = nn.Conv2d(dim, dim, 3, 1, 1)
 
         self.patch_embed = PatchEmbed(
             img_size=img_size, patch_size=patch_size, in_chans=0, embed_dim=dim, norm_layer=None)
@@ -403,130 +365,12 @@ class ResidualGroup(nn.Module):
             img_size=img_size, patch_size=patch_size, in_chans=0, embed_dim=dim, norm_layer=None)
 
     def forward(self, x, x_size):
-        return self.patch_embed(self.conv(self.patch_unembed(self.residual_group(x, x_size), x_size))) + x
 
-class PatchEmbed(nn.Module):
-    r""" transfer 2D feature map into 1D token sequence
-
-    Args:
-        img_size (int): Image size.  Default: None.
-        patch_size (int): Patch token size. Default: None.
-        in_chans (int): Number of input image channels. Default: 3.
-        embed_dim (int): Number of linear projection output channels. Default: 96.
-        norm_layer (nn.Module, optional): Normalization layer. Default: None
-    """
-
-    def __init__(self, img_size=224, patch_size=4, in_chans=3, embed_dim=96, norm_layer=None):
-        super().__init__()
-        img_size = to_2tuple(img_size)
-        patch_size = to_2tuple(patch_size)
-        patches_resolution = [img_size[0] // patch_size[0], img_size[1] // patch_size[1]]
-        self.img_size = img_size
-        self.patch_size = patch_size
-        self.patches_resolution = patches_resolution
-        self.num_patches = patches_resolution[0] * patches_resolution[1]
-
-        self.in_chans = in_chans
-        self.embed_dim = embed_dim
-
-        if norm_layer is not None:
-            self.norm = norm_layer(embed_dim)
-        else:
-            self.norm = None
-
-    def forward(self, x):
-        x = x.flatten(2).transpose(1, 2)  # b Ph*Pw c
-        if self.norm is not None:
-            x = self.norm(x)
-        return x
-
-class PatchUnEmbed(nn.Module):
-    r""" return 2D feature map from 1D token sequence
-
-    Args:
-        img_size (int): Image size.  Default: None.
-        patch_size (int): Patch token size. Default: None.
-        in_chans (int): Number of input image channels. Default: 3.
-        embed_dim (int): Number of linear projection output channels. Default: 96.
-        norm_layer (nn.Module, optional): Normalization layer. Default: None
-    """
-
-    def __init__(self, img_size=224, patch_size=4, in_chans=3, embed_dim=96, norm_layer=None):
-        super().__init__()
-        img_size = to_2tuple(img_size)
-        patch_size = to_2tuple(patch_size)
-        patches_resolution = [img_size[0] // patch_size[0], img_size[1] // patch_size[1]]
-        self.img_size = img_size
-        self.patch_size = patch_size
-        self.patches_resolution = patches_resolution
-        self.num_patches = patches_resolution[0] * patches_resolution[1]
-
-        self.in_chans = in_chans
-        self.embed_dim = embed_dim
-
-    def forward(self, x, x_size):
-        x = x.transpose(1, 2).view(x.shape[0], self.embed_dim, x_size[0], x_size[1])  # b Ph*Pw c
-        return x
-
-class UpsampleOneStep(nn.Sequential):
-    """UpsampleOneStep module (the difference with Upsample is that it always only has 1conv + 1pixelshuffle)
-       Used in lightweight SR to save parameters.
-
-    Args:
-        scale (int): Scale factor. Supported scales: 2^n and 3.
-        num_feat (int): Channel number of intermediate features.
-
-    """
-
-    def __init__(self, scale, num_feat, num_out_ch):
-        self.num_feat = num_feat
-        m = []
-        m.append(nn.Conv2d(num_feat, (scale**2) * num_out_ch, 3, 1, 1))
-        m.append(nn.PixelShuffle(scale))
-        super(UpsampleOneStep, self).__init__(*m)
-
-class Upsample(nn.Sequential):
-    """Upsample module.
-
-    Args:
-        scale (int): Scale factor. Supported scales: 2^n and 3.
-        num_feat (int): Channel number of intermediate features.
-    """
-
-    def __init__(self, scale, num_feat):
-        m = []
-        if (scale & (scale - 1)) == 0:  # scale = 2^n
-            for _ in range(int(math.log(scale, 2))):
-                m.append(nn.Conv2d(num_feat, 4 * num_feat, 3, 1, 1))
-                m.append(nn.PixelShuffle(2))
-        elif scale == 3:
-            m.append(nn.Conv2d(num_feat, 9 * num_feat, 3, 1, 1))
-            m.append(nn.PixelShuffle(3))
-        else:
-            raise ValueError(f'scale {scale} is not supported. Supported scales: 2^n and 3.')
-        super(Upsample, self).__init__(*m)
-
+        for blk in self.blocks:
+            x = blk(x, x_size)
+        return self.patch_embed(self.conv(self.patch_unembed(x, x_size))) + x
 
 class cobraFusion(nn.Module):
-    r""" MambaIR Model
-           A PyTorch impl of : `A Simple Baseline for Image Restoration with State Space Model `.
-
-       Args:
-           img_size (int | tuple(int)): Input image size. Default 64
-           patch_size (int | tuple(int)): Patch size. Default: 1
-           in_chans (int): Number of input image channels. Default: 3
-           embed_dim (int): Patch embedding dimension. Default: 96
-           d_state (int): num of hidden state in the state space model. Default: 16
-           depths (tuple(int)): Depth of each RSSG
-           drop_rate (float): Dropout rate. Default: 0
-           drop_path_rate (float): Stochastic depth rate. Default: 0.1
-           norm_layer (nn.Module): Normalization layer. Default: nn.LayerNorm.
-           patch_norm (bool): If True, add normalization after patch embedding. Default: True
-           upscale: Upscale factor. 2/3/4 for image SR, 1 for denoising
-           img_range: Image range. 1. or 255.
-           upsampler: The reconstruction reconstruction module. 'pixelshuffle'/None
-           resi_connection: The convolutional block before residual connection. '1conv'/'3conv'
-       """
     def __init__(self,
                  img_size=64,
                  patch_size=1,
@@ -541,8 +385,6 @@ class cobraFusion(nn.Module):
                  patch_norm=True,
                  upscale=2,
                  img_range=1.,
-                 upsampler='',
-                 resi_connection='1conv',
                  **kwargs):
         super(cobraFusion, self).__init__()
         num_in_ch = in_chans
@@ -551,7 +393,6 @@ class cobraFusion(nn.Module):
         self.img_range = img_range
         self.mean = torch.zeros(1, 1, 1, 1)
         self.upscale = upscale
-        self.upsampler = upsampler
         self.mlp_ratio=mlp_ratio
         # ------------------------- 1, shallow feature extraction ------------------------- #
         self.conv_first = nn.Conv2d(num_in_ch, embed_dim, 3, 1, 1)
@@ -561,7 +402,6 @@ class cobraFusion(nn.Module):
         self.embed_dim = embed_dim
         self.patch_norm = patch_norm
         self.num_features = embed_dim
-
 
         # transfer 2D feature map into 1D token sequence, pay attention to whether using normalization
         self.patch_embed = PatchEmbed(
@@ -582,14 +422,14 @@ class cobraFusion(nn.Module):
             norm_layer=norm_layer if self.patch_norm else None)
 
         self.pos_drop = nn.Dropout(p=drop_rate)
-        self.is_light_sr = True if self.upsampler=='pixelshuffledirect' else False
+
         # stochastic depth
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
 
         # build Residual State Space Group (RSSG)
         self.layers = nn.ModuleList()
-        for i_layer in range(self.num_layers): # 6-layer
-            layer = ResidualGroup(
+        for i_layer in range(self.num_layers):
+            layer = RSSGroup(
                 dim=embed_dim,
                 input_resolution=(patches_resolution[0], patches_resolution[1]),
                 depth=depths[i_layer],
@@ -597,39 +437,17 @@ class cobraFusion(nn.Module):
                 mlp_ratio=self.mlp_ratio,
                 drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],  # no impact on SR results
                 norm_layer=norm_layer,
-                downsample=None,
                 img_size=img_size,
                 patch_size=patch_size,
-                resi_connection=resi_connection,
-                is_light_sr = self.is_light_sr
             )
             self.layers.append(layer)
         self.norm = norm_layer(self.num_features)
 
         # build the last conv layer in the end of all residual groups
-        if resi_connection == '1conv':
-            self.conv_after_body = nn.Conv2d(embed_dim, embed_dim, 3, 1, 1)
-        elif resi_connection == '3conv':
-            # to save parameters and memory
-            self.conv_after_body = nn.Sequential(
-                nn.Conv2d(embed_dim, embed_dim // 4, 3, 1, 1), nn.LeakyReLU(negative_slope=0.2, inplace=True),
-                nn.Conv2d(embed_dim // 4, embed_dim // 4, 1, 1, 0), nn.LeakyReLU(negative_slope=0.2, inplace=True),
-                nn.Conv2d(embed_dim // 4, embed_dim, 3, 1, 1))
+        self.conv_after_body = nn.Conv2d(embed_dim, embed_dim, 3, 1, 1)
 
         # -------------------------3. high-quality image reconstruction ------------------------ #
-        if self.upsampler == 'pixelshuffle':
-            # for classical SR
-            self.conv_before_upsample = nn.Sequential(
-                nn.Conv2d(embed_dim, num_feat, 3, 1, 1), nn.LeakyReLU(inplace=True))
-            self.upsample = Upsample(upscale, num_feat)
-            self.conv_last = nn.Conv2d(num_feat, num_out_ch, 3, 1, 1)
-        elif self.upsampler == 'pixelshuffledirect':
-            # for lightweight SR (to save parameters)
-            self.upsample = UpsampleOneStep(upscale, embed_dim, num_out_ch)
-
-        else:
-            # for image denoising
-            self.conv_last = nn.Conv2d(embed_dim, num_out_ch, 3, 1, 1)
+        self.conv_last = nn.Conv2d(embed_dim, num_out_ch, 3, 1, 1)
 
         self.apply(self._init_weights)
 
@@ -662,24 +480,9 @@ class cobraFusion(nn.Module):
         self.mean = self.mean.type_as(x)
         x = (x - self.mean) * self.img_range
 
-        if self.upsampler == 'pixelshuffle':
-            # for classical SR
-            x = self.conv_first(x)
-            x = self.conv_after_body(self.forward_features(x)) + x
-            x = self.conv_before_upsample(x)
-            x = self.conv_last(self.upsample(x))
-
-        elif self.upsampler == 'pixelshuffledirect':
-            # for lightweight SR
-            x = self.conv_first(x)
-            x = self.conv_after_body(self.forward_features(x)) + x
-            x = self.upsample(x)
-
-        else:
-            # for image denoising
-            x_first = self.conv_first(x)
-            res = self.conv_after_body(self.forward_features(x_first)) + x_first
-            x = x + self.conv_last(res)
+        x_first = self.conv_first(x)
+        res = self.conv_after_body(self.forward_features(x_first)) + x_first
+        x = x + self.conv_last(res)
 
         x = x / self.img_range + self.mean
 
