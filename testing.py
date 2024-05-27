@@ -8,8 +8,6 @@ from datamodule_mat import PANDataModule
 from lightning import Trainer
 from lightning.pytorch.loggers import WandbLogger, CSVLogger
 from dotenv import load_dotenv
-from torchview import draw_graph
-import cv2 as cv
 
 load_dotenv()
 def main(hparams):
@@ -26,8 +24,6 @@ def main(hparams):
     
     num_channels = 4 if satelite == "qb" else 8
     model = MambFuse(num_channels)
-
-    model_graph = draw_graph(model, input_size=(1, 4, 256, 256), device='cuda', save_graph=True, filename='model_graph3', expand_nested=True)
 
     # model = model.load_from_checkpoint("./PanSharpening/hbqnqyh9/checkpoints/epoch=9-step=5360.ckpt", spectral_num=num_channels)
     # model = model(num_channels)
