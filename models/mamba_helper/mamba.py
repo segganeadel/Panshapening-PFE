@@ -336,7 +336,8 @@ class RSSGroup(nn.Module):
                  norm_layer=nn.LayerNorm,
                  img_size=None,
                  patch_size=None,
-                 is_light_sr = False):
+                 is_light_sr = False,
+                 **kwargs):
         super(RSSGroup, self).__init__()
 
         self.dim = dim
@@ -352,7 +353,8 @@ class RSSGroup(nn.Module):
                 d_state=d_state,
                 expand=mlp_ratio,
                 input_resolution=input_resolution,
-                is_light_sr=is_light_sr))
+                is_light_sr=is_light_sr,
+                **kwargs))
 
 
         # build the last conv layer in each residual state space group
@@ -374,7 +376,7 @@ class deepFuse(nn.Module):
     def __init__(self,
                  img_size=64,
                  patch_size=1,
-                 in_chans=4,
+                 spectral_num=4,
                  embed_dim=96,
                  depths=(2, 2),
                  drop_rate=0.,
@@ -387,8 +389,8 @@ class deepFuse(nn.Module):
                  img_range=1.,
                  **kwargs):
         super(deepFuse, self).__init__()
-        num_in_ch = in_chans
-        num_out_ch = in_chans
+        num_in_ch = spectral_num
+        num_out_ch = spectral_num
         num_feat = 64
         self.img_range = img_range
         self.mean = torch.zeros(1, 1, 1, 1)
@@ -439,6 +441,7 @@ class deepFuse(nn.Module):
                 norm_layer=norm_layer,
                 img_size=img_size,
                 patch_size=patch_size,
+                **kwargs
             )
             self.layers.append(layer)
         self.norm = norm_layer(self.num_features)
