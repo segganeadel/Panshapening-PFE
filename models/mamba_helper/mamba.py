@@ -350,7 +350,7 @@ class RSSGroup(nn.Module):
                 norm_layer=nn.LayerNorm,
                 attn_drop_rate=0,
                 d_state=d_state,
-                expand=self.mlp_ratio,
+                expand=mlp_ratio,
                 input_resolution=input_resolution,
                 is_light_sr=is_light_sr))
 
