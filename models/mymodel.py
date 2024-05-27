@@ -8,10 +8,36 @@ from metrics_torch.ERGAS_TORCH import ergas_torch
 from metrics_torch.SAM_TORCH import sam_torch
 from .mamba_helper.mamba import cobraFusion
 
+class Resblock(nn.Module):
+    def __init__(self):
+        super(Resblock, self).__init__()
+
+        channel = 32
+        self.conv20 = nn.Conv2d(in_channels=channel, out_channels=channel, kernel_size=3, stride=1, padding=1)
+        self.conv21 = nn.Conv2d(in_channels=channel, out_channels=channel, kernel_size=3, stride=1, padding=1)
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):  # x= hp of ms; y = hp of pan
+        rs1 = self.relu(self.conv20(x))  # Bsx32x64x64
+        rs1 = self.conv21(rs1)  # Bsx32x64x64
+        rs = torch.add(x, rs1)  # Bsx32x64x64
+        return rs
+
 class MambFuse(L.LightningModule):
     def __init__(self, spectral_num, channel=32):
         super(MambFuse, self).__init__()
         self.spectral_num = spectral_num
+
+        self.backbone_recept = nn.Sequential(  # method 2: 4 resnet repeated blocks
+            nn.Conv2d(in_channels=spectral_num, out_channels=channel, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            Resblock(),
+            Resblock(),
+            Resblock(),
+            Resblock(),
+            nn.Conv2d(in_channels=channel, out_channels=spectral_num, kernel_size=3, stride=1, padding=1)
+        )
+
         self.deepfusion = cobraFusion()
 
     def forward(self, input):
@@ -20,9 +46,12 @@ class MambFuse(L.LightningModule):
 
         pan_concat = pan.repeat(1, self.spectral_num, 1, 1)  # Bsx8x64x64
         diff = torch.sub(pan_concat, lms)
-        
-        out = self.deepfusion(diff)
-        return out
+
+        out = self.backbone_recept(diff)
+        out = self.deepfusion(out)
+
+        output = torch.add(out, lms) 
+        return output
 
             
 
