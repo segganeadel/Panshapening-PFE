@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 
-from models.mymodel import MambFuse
+from models.mambfuse import MambFuse
 
 import torch
 import os

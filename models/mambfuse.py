@@ -6,7 +6,7 @@ import lightning as L
 import torch.nn.functional as F
 from metrics_torch.ERGAS_TORCH import ergas_torch
 from metrics_torch.SAM_TORCH import sam_torch
-from .mamba_helper.mamba import cobraFusion
+from .mamba_helper.mamba import deepFuse
 
 class Resblock(nn.Module):
     def __init__(self):
@@ -38,7 +38,7 @@ class MambFuse(L.LightningModule):
             nn.Conv2d(in_channels=channel, out_channels=spectral_num, kernel_size=3, stride=1, padding=1)
         )
 
-        self.deepfusion = cobraFusion()
+        self.deepfusion = deepFuse()
 
     def forward(self, input):
         lms = input['lms']
@@ -56,7 +56,7 @@ class MambFuse(L.LightningModule):
             
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=5e-4)
+        return torch.optim.Adam(self.parameters(), lr=2e-4)
     
     def training_step(self, batch, batch_idx):
         y_hat = self(batch)

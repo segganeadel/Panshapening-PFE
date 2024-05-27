@@ -370,7 +370,7 @@ class RSSGroup(nn.Module):
             x = blk(x, x_size)
         return self.patch_embed(self.conv(self.patch_unembed(x, x_size))) + x
 
-class cobraFusion(nn.Module):
+class deepFuse(nn.Module):
     def __init__(self,
                  img_size=64,
                  patch_size=1,
@@ -386,7 +386,7 @@ class cobraFusion(nn.Module):
                  upscale=2,
                  img_range=1.,
                  **kwargs):
-        super(cobraFusion, self).__init__()
+        super(deepFuse, self).__init__()
         num_in_ch = in_chans
         num_out_ch = in_chans
         num_feat = 64
