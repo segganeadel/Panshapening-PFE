@@ -16,7 +16,7 @@ def main(hparams):
     satelite = "qb"
     highpass = False
     data_dir = os.path.join(".","data","mat",satelite)   
-    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 3, shuffle_train = False, batch_size = 1)
+    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 3, shuffle_train = True, batch_size = 1)
 
     csv_logger = CSVLogger(".")
     trainer = Trainer(logger=[csv_logger], 
