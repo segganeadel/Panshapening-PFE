@@ -12,16 +12,16 @@ class MambFuse(L.LightningModule):
     def __init__(self, spectral_num, channel=32):
         super(MambFuse, self).__init__()
         self.spectral_num = spectral_num
-        self.vssm = cobraFusion()
+        self.deepfusion = cobraFusion()
 
     def forward(self, input):
-        # lms = input['lms']
-        # pan = input['pan']
+        lms = input['lms']
+        pan = input['pan']
 
-        # pan_concat = pan.repeat(1, self.spectral_num, 1, 1)  # Bsx8x64x64
-        # diff = torch.sub(pan_concat, lms)
+        pan_concat = pan.repeat(1, self.spectral_num, 1, 1)  # Bsx8x64x64
+        diff = torch.sub(pan_concat, lms)
         
-        out = self.vssm(input)
+        out = self.deepfusion(input)
         return out
 
             
