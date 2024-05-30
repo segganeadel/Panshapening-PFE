@@ -87,9 +87,11 @@ class MambFuse(L.LightningModule):
         with torch.no_grad():
             ergas = ergas_torch(y_hat, y)  
             sam = sam_torch(y_hat, y)
+            q2n = q2n_torch(y_hat, y)
             self.log_dict({'validation_loss':  loss, 
                         'validation_sam':   sam, 
-                        'validation_ergas': ergas}, 
+                        'validation_ergas': ergas,
+                        'test_q2n': q2n}, 
                             prog_bar=True,
                             sync_dist=True)
         return loss
@@ -102,10 +104,12 @@ class MambFuse(L.LightningModule):
 
         with torch.no_grad():
             sam = sam_torch(y_hat, y)
-            ergas = ergas_torch(y_hat, y)  
+            ergas = ergas_torch(y_hat, y) 
+            q2n = q2n_torch(y_hat, y) 
             self.log_dict({'test_loss':  loss, 
                         'test_sam':   sam, 
-                        'test_ergas': ergas}, 
+                        'test_ergas': ergas,
+                        'test_q2n': q2n}, 
                             prog_bar=True,
                             sync_dist=True)
         return loss
