@@ -12,8 +12,14 @@ from models.pnn import PNN
 from models.mambfuse import MambFuse
 
 from datamodule_mat import PANDataModule
-from lightning import Trainer
-from lightning.pytorch.loggers import WandbLogger, CSVLogger
+
+try:
+    from lightning import Trainer
+    from lightning.pytorch.loggers import WandbLogger, CSVLogger
+except:
+    from pytorch_lightning import Trainer
+    from pytorch_lightning.loggers import WandbLogger, CSVLogger
+
 
 def main(hparams):
     

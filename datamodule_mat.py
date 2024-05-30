@@ -1,7 +1,11 @@
-from torch.utils.data import DataLoader
-import lightning as L
 import os
+from torch.utils.data import DataLoader
 from dataset_mat import Dataset_mat_rr, Dataset_mat_fr
+try:
+    import lightning as L
+except:
+    import pytorch_lightning as L
+
 
 class PANDataModule(L.LightningDataModule):
     def __init__(self,

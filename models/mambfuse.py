@@ -2,11 +2,14 @@
 import torch
 import torch
 import torch.nn as nn
-import lightning as L
 import torch.nn.functional as F
 from metrics_torch.ERGAS_TORCH import ergas_torch
 from metrics_torch.SAM_TORCH import sam_torch
 from .mamba_helper.mamba import deepFuse
+try:
+    from lightning import LightningModule as L
+except:
+    from pytorch_lightning import LightningModule as L
 
 class Resblock(nn.Module):
     def __init__(self):
