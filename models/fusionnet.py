@@ -1,11 +1,14 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import lightning as L
 import torch.nn.functional as F
 from metrics_torch.ERGAS_TORCH import ergas_torch
 from metrics_torch.SAM_TORCH import sam_torch
 from metrics_torch.Q2N_TORCH import q2n_torch
+try:
+    from lightning import LightningModule as L
+except:
+    from pytorch_lightning import LightningModule as L
 
 
 
