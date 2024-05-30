@@ -45,7 +45,7 @@ def main(hparams):
     data_dir = args.data_dir
     datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 2, shuffle_train = False, batch_size = 32)
 
-    wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix = satelite, job_type="train", group = "mymodel")
+    wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix = satelite, job_type="train", group = "mymodel", log_model="all")
     csv_logger = CSVLogger(".")
     trainer = Trainer(logger=[wandb_logger, csv_logger], 
                       max_epochs=10)
