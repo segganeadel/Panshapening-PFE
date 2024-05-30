@@ -1,14 +1,14 @@
 import torch
 
 
-def q2n_torch(I_GT:torch.Tensor, I_F:torch.Tensor, Q_blocks_size=32, Q_shift=32):
+def q2n_torch(I_F:torch.Tensor, I_GT:torch.Tensor, Q_blocks_size=32, Q_shift=32):
     """
     Parameters
     ----------
-    I_GT : torch.Tensor
-        Ground truth images of shape (N, C, H, W)
     I_F : torch.Tensor
         Fusion images of shape (N, C, H, W)
+    I_GT : torch.Tensor
+        Ground truth images of shape (N, C, H, W)
     Q_blocks_size : int, optional
         Size of the blocks, by default 32
     Q_shift : int, optional
@@ -27,16 +27,19 @@ def q2n_torch(I_GT:torch.Tensor, I_F:torch.Tensor, Q_blocks_size=32, Q_shift=32)
     indexes = []
     maps = []
 
-    # TODO: change the code to lose the need to iterate over the batch
-    for i in range(I_GT.shape[0]):
-        index, q2n_map = q2n(I_GT[i], I_F[i], Q_blocks_size, Q_shift)
-        indexes.append(index)
-        maps.append(q2n_map)
+    index = 0
+    if I_GT.shape[0] != 0:
+        # TODO: change the code to lose the need to iterate over the batch
+        for i in range(I_GT.shape[0]):
+            index, q2n_map = q2n(I_GT[i], I_F[i], Q_blocks_size, Q_shift)
+            indexes.append(index)
+            maps.append(q2n_map)
 
-    indexes = torch.tensor(indexes)
-    maps = torch.stack(maps)
+        indexes = torch.tensor(indexes)
+        maps = torch.stack(maps)
+        index = indexes.mean()
 
-    return indexes, maps
+    return index
 
 
 def q2n(I_GT, I_F, Q_blocks_size = 32, Q_shift = 32):

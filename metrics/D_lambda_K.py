@@ -29,8 +29,8 @@ All rights reserved. This work should only be used for nonprofit purposes.
          G. Vivone, M. Dalla Mura, A. Garzelli, R. Restaino, G. Scarpa, M. O. Ulfarsson, L. Alparone, and J. Chanussot, "A New Benchmark Based on Recent Advances in Multispectral Pansharpening: Revisiting Pansharpening With Classical and Emerging Pansharpening Methods", IEEE Geoscience and Remote Sensing Magazine, vol. 9, no. 1, pp. 53 - 81, March 2021.  
 """
 
-from MTF import MTF
-from q2n import q2n
+from .MTF import MTF
+from .q2n import q2n
 
 def D_lambda_K(fused,ms,ratio,sensor,S):
 

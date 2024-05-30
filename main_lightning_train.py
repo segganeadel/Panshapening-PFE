@@ -1,3 +1,4 @@
+import os
 from argparse import ArgumentParser
 
 from models.apnn import APNN
@@ -10,7 +11,6 @@ from models.pannet import PanNet
 from models.pnn import PNN
 from models.mambfuse import MambFuse
 
-import os
 from datamodule_mat import PANDataModule
 from lightning import Trainer
 from lightning.pytorch.loggers import WandbLogger, CSVLogger

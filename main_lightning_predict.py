@@ -1,3 +1,4 @@
+import os
 from argparse import ArgumentParser
 
 from models.apnn import APNN
@@ -10,10 +11,10 @@ from models.pannet import PanNet
 from models.pnn import PNN
 
 import torch
-import os
 from datamodule_mat import PANDataModule
 from lightning import Trainer
 from lightning.pytorch.loggers import WandbLogger, CSVLogger
+from scipy.io import savemat
 
 import cv2 as cv
 
@@ -46,17 +47,21 @@ def main(hparams):
     
     num_channels = 4 if satelite == "qb" else 8
 
-    model = model.load_from_checkpoint("./PanSharpening/hbqnqyh9/checkpoints/epoch=9-step=5360.ckpt", spectral_num=num_channels)
-    # model = model(num_channels)
-    # model.load_state_dict(torch.load(weights_path))
-
-    results = trainer.predict(model, datamodule)
+    # model = model.load_from_checkpoint("./PanSharpening/hbqnqyh9/checkpoints/epoch=9-step=5360.ckpt", spectral_num=num_channels)
+    model = model(num_channels)
+    model.load_state_dict(torch.load(weights_path))
+    
+    test_dataloader = datamodule.test_dataloader()
+    results = trainer.predict(model, test_dataloader)
     os.makedirs("out", exist_ok=True)
 
     for index ,result in enumerate(results):
+        result = result * 2047.0
+        result = result.squeeze(0)
         print(result.shape)
-        result = result[:,:3].numpy().transpose(0,2,3,1)*255
-        generate_image_out(result, index, model_name)
+        savemat(f"out/{index}.mat", {"out": result})
+        # result = result[:,:3].numpy().transpose(0,2,3,1)*255
+        # generate_image_out(result, index, model_name)
 
 def generate_image_out (image_out, batch_n, model_name):
     count = batch_n * image_out.shape[0]

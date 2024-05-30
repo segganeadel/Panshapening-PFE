@@ -5,6 +5,9 @@ import lightning as L
 import torch.nn.functional as F
 from metrics_torch.ERGAS_TORCH import ergas_torch
 from metrics_torch.SAM_TORCH import sam_torch
+from metrics_torch.Q2N_TORCH import q2n_torch
+
+
 
 
 
@@ -44,10 +47,6 @@ class FusionNet(L.LightningModule):
             self.res3,
             self.res4
         )
-
-        # init_weights(self.backbone, self.conv1, self.conv3)   # state initialization, important!
-        # self.apply(init_weights)
-
 
 
     def forward(self, input):  # x= lms; y = pan
@@ -105,15 +104,20 @@ class FusionNet(L.LightningModule):
 
         with torch.no_grad():
             sam = sam_torch(y_hat, y)
-            ergas = ergas_torch(y_hat, y)  
+            ergas = ergas_torch(y_hat, y)
+            q2n = q2n_torch(y_hat, y)
+            
             self.log_dict({'test_loss':  loss, 
                         'test_sam':   sam, 
-                        'test_ergas': ergas}, 
+                        'test_ergas': ergas,
+                        'test_q2n': q2n}, 
                             prog_bar=True)
         return loss
 
     def predict_step(self, batch, batch_idx):
+
         x = batch
         preds = self(x)
+
         return preds
     
