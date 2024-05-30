@@ -32,7 +32,7 @@ class PANDataModule(L.LightningDataModule):
 
         # creating the dataset
         data = Dataset_mat_rr(train_file_path, img_scale=self.img_scale, highpass=self.highpass)
-        return DataLoader(data, batch_size=self.batch_size, num_workers=self.num_workers, persistent_workers=True, shuffle=self.shuffle_train)
+        return DataLoader(data, batch_size=self.batch_size, num_workers=self.num_workers, persistent_workers=True, shuffle=self.shuffle_train, pin_memory=True)
 
     def val_dataloader(self):
         val_file_path = os.path.join(self.data_dir, 'valid')

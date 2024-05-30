@@ -7,9 +7,7 @@ import os
 from datamodule_mat import PANDataModule
 from lightning import Trainer
 from lightning.pytorch.loggers import WandbLogger, CSVLogger
-from dotenv import load_dotenv
 
-load_dotenv()
 def main(hparams):
     
 

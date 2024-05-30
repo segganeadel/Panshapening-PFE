@@ -37,11 +37,12 @@ def main(hparams):
     }
 
     # Choose the model
-    model_name = "mambfuse" # "apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn"
+    model_name = "fusionnet" # "apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn"
     model, weights_path, highpass = models.get(model_name)
 
+    
     satelite = "qb"
-    data_dir = os.path.join(".","data","mat",satelite)   
+    data_dir = args.data_dir
     datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 2, shuffle_train = False, batch_size = 32)
 
     wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix = satelite, job_type="train", group = "mymodel")
@@ -55,6 +56,7 @@ def main(hparams):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
+    parser.add_argument("--data_dir", default="./data/mat/qb")
     parser.add_argument("--accelerator", default=None)
     parser.add_argument("--devices", default=None)
     args = parser.parse_args()
