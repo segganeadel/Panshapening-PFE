@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from metrics_torch.ERGAS_TORCH import ergas_torch
 from metrics_torch.SAM_TORCH import sam_torch
+from metrics_torch.Q2N_TORCH import q2n_torch
 from .mamba_helper.mamba import deepFuse
 try:
     import lightning as L
@@ -69,10 +70,13 @@ class MambFuse(L.LightningModule):
         with torch.no_grad():
             ergas = ergas_torch(y_hat, y) 
             sam = sam_torch(y_hat, y)
+            q2n = q2n_torch(y_hat, y)
             self.log_dict({'training_loss': loss, 
                         'training_sam':   sam, 
-                        'training_ergas': ergas}, 
-                            prog_bar=True)
+                        'training_ergas': ergas,
+                        'test_q2n': q2n}, 
+                            prog_bar=True,
+                            sync_dist=True)
         return loss
     
     def validation_step(self, batch, batch_idx):
@@ -86,7 +90,8 @@ class MambFuse(L.LightningModule):
             self.log_dict({'validation_loss':  loss, 
                         'validation_sam':   sam, 
                         'validation_ergas': ergas}, 
-                            prog_bar=True)
+                            prog_bar=True,
+                            sync_dist=True)
         return loss
     
     def test_step(self, batch, batch_idx):
@@ -101,7 +106,8 @@ class MambFuse(L.LightningModule):
             self.log_dict({'test_loss':  loss, 
                         'test_sam':   sam, 
                         'test_ergas': ergas}, 
-                            prog_bar=True)
+                            prog_bar=True,
+                            sync_dist=True)
         return loss
 
     def predict_step(self, batch, batch_idx):
