@@ -37,7 +37,7 @@ def main(hparams):
     }
 
     # Choose the model
-    model_name = "fusionnet" # "apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn"
+    model_name = args.method # "apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn"
     model, weights_path, highpass = models.get(model_name)
 
     
@@ -57,6 +57,7 @@ def main(hparams):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--data_dir", default="./data/mat/qb")
+    parser.add_argument("--method", default="fusionnet", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
     parser.add_argument("--accelerator", default=None)
     parser.add_argument("--devices", default=None)
     args = parser.parse_args()
