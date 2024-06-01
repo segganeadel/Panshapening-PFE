@@ -37,17 +37,17 @@ def main(hparams):
     }
 
     # Choose the model
-    model_name = args.method
+    model_name = hparams.method
     model, weights_path, highpass = models.get(model_name)
 
-    satelite = args.satellite
-    data_dir = args.data_dir
+    satelite = hparams.satellite
+    data_dir = hparams.data_dir
     datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 2, shuffle_train = False, batch_size = 32)
 
     wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix = satelite, job_type="train", group = "mymodel", log_model="all")
     csv_logger = CSVLogger(".")
     trainer = Trainer(logger=[wandb_logger, csv_logger], 
-                      max_epochs=int(args.epochs))
+                      max_epochs=int(hparams.epochs))
     
     num_channels = 4 if satelite == "qb" else 8
     model = model(spectral_num=num_channels) # 4 Channels if qb 8 for else

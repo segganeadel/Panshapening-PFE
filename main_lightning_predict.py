@@ -39,15 +39,12 @@ def main(hparams):
     }
 
     model_name = hparams.method
-    satelite = args.satellite
-    data_dir = args.data_dir
+    satelite = hparams.satellite
+    data_dir = hparams.data_dir
 
-    model_name = hparams.method
     model, weights_path, highpass = models.get(model_name)
     weights_path = os.path.join(".", "weights", "QB", weights_path)
 
-    satelite = args.satellite
-    data_dir = args.data_dir
     datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 7, shuffle_train = False, batch_size = 1)
 
     wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix=satelite)

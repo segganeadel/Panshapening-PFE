@@ -37,8 +37,8 @@ def main(hparams):
 
     
     model_name = hparams.method
-    satelite = args.satellite
-    data_dir = args.data_dir
+    satelite = hparams.satellite
+    data_dir = hparams.data_dir
 
     model, weights_path, highpass = models.get(model_name)
     weights_path = os.path.join(".", "weights", "QB", weights_path)
@@ -51,6 +51,8 @@ def main(hparams):
     
     num_channels = 4 if satelite == "qb" else 8
 
+    print(hparams.wandb_model)
+    
     if hparams.wandb_model:
         artifact = wandb_logger.use_artifact(hparams.wandb_model, "model")
         ckpt = artifact.download()
