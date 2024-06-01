@@ -35,32 +35,47 @@ def main(hparams):
         "pnn":      (PNN,       "pnn.pth",      False)
     }
 
-    # Choose the model
-    model_name = "fusionnet" # "apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn"
+    
+    model_name = hparams.method
+    satelite = args.satellite
+    data_dir = args.data_dir
+
     model, weights_path, highpass = models.get(model_name)
     weights_path = os.path.join(".", "weights", "QB", weights_path)
 
-    satelite = "qb"
-    data_dir = os.path.join(".","data","mat",satelite)   
     datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 7, shuffle_train = False, batch_size = 1)
 
     wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix = satelite, job_type="test", group = "mine")
     csv_logger = CSVLogger(".")
-    trainer = Trainer(logger=[wandb_logger, csv_logger], 
-                      max_epochs=3)
+    trainer = Trainer(logger=[wandb_logger, csv_logger])
     
     num_channels = 4 if satelite == "qb" else 8
-    model = model.load_from_checkpoint("./PanSharpening/hbqnqyh9/checkpoints/epoch=9-step=5360.ckpt", spectral_num=num_channels)
-    # model = model(num_channels)
-    # model.load_state_dict(torch.load(weights_path))
+
+    if hparams.wandb_model:
+        artifact = wandb_logger.use_artifact(hparams.wandb_model, type="model")
+        ckpt = artifact.download()
+        model_path = os.path.join(ckpt, "model.ckpt")
+        model = model.load_from_checkpoint(model_path, spectral_num=num_channels)
+    elif hparams.ckpt:
+        try:
+            model = model.load_from_checkpoint(hparams.ckpt, spectral_num=num_channels)
+        except:
+            model = model(num_channels)
+            model.load_state_dict(torch.load(hparams.ckpt))
+    else:
+        model = model(num_channels)
+        model.load_state_dict(torch.load(weights_path))
     
     trainer.test(model, datamodule)
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--accelerator", default=None)
-    parser.add_argument("--devices", default=None)
+    parser.add_argument("--satellite", default="qb")
+    parser.add_argument("--data_dir", default="./data/mat/qb")
+    parser.add_argument("--method", default="fusionnet", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
+    parser.add_argument("--wandb_model", default=None)
+    parser.add_argument("--ckpt", default=None)
     args = parser.parse_args()
 
     main(args)

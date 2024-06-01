@@ -23,6 +23,7 @@ def main(hparams):
     num_channels = 4 if satelite == "qb" else 8
     model = MambFuse(num_channels)
 
+    
     # model = model.load_from_checkpoint("./PanSharpening/hbqnqyh9/checkpoints/epoch=9-step=5360.ckpt", spectral_num=num_channels)
     # model = model(num_channels)
     # model.load_state_dict(torch.load(weights_path))
@@ -32,6 +33,9 @@ def main(hparams):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
+    parser.add_argument("--data_dir", default="./data/mat/qb")
+    parser.add_argument("--method", default="fusionnet", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
+    parser.add_argument("--ckpt", default=None)
     parser.add_argument("--accelerator", default=None)
     parser.add_argument("--devices", default=None)
     args = parser.parse_args()

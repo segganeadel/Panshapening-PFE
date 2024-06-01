@@ -33,15 +33,14 @@ def main(hparams):
         "msdcnn":   (MSDCNN,    "msdcnn.pth",   False),
         "pannet":   (PanNet,    "panet.pth",    True),
         "pnn":      (PNN,       "pnn.pth",      False),
-        "mambfuse": (MambFuse,  "", False)
+        "mambfuse": (MambFuse,  "",             False)
     }
 
     # Choose the model
-    model_name = args.method # "apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn"
+    model_name = args.method
     model, weights_path, highpass = models.get(model_name)
 
-    
-    satelite = "qb"
+    satelite = args.satellite
     data_dir = args.data_dir
     datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 2, shuffle_train = False, batch_size = 32)
 
@@ -56,11 +55,10 @@ def main(hparams):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
+    parser.add_argument("--satellite", default="qb")
     parser.add_argument("--data_dir", default="./data/mat/qb")
     parser.add_argument("--method", default="fusionnet", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
     parser.add_argument("--epochs", default=2)
-    parser.add_argument("--accelerator", default=None)
-    parser.add_argument("--devices", default=None)
     args = parser.parse_args()
 
     main(args)
