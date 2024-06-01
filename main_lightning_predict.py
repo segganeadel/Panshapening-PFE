@@ -9,12 +9,16 @@ from models.fusionnet import FusionNet
 from models.msdcnn import MSDCNN
 from models.pannet import PanNet
 from models.pnn import PNN
+from models.mambfuse import MambFuse
 
 import torch
 from datamodule_mat import PANDataModule
-from lightning import Trainer
-from lightning.pytorch.loggers import WandbLogger, CSVLogger
-from scipy.io import savemat
+try:
+    from lightning import Trainer
+    from lightning.pytorch.loggers import WandbLogger, CSVLogger
+except:
+    from pytorch_lightning import Trainer
+    from pytorch_lightning.loggers import WandbLogger, CSVLogger
 
 import cv2 as cv
 
@@ -22,14 +26,16 @@ import cv2 as cv
 def main(hparams):
     
     models = {
-        "apnn":(APNN,"apnn.pth",False),
-        "bdpn":(BDPN,"bdpn.pth",False),
-        "dicnn":(DICNN,"dicnn1.pth",False),
-        "drpnn":(DRPNN,"drpnn.pth",False),
-        "fusionnet":(FusionNet,"fusionnet.pth",False),
-        "msdcnn":(MSDCNN,"msdcnn.pth",False),
-        "pannet":(PanNet,"panet.pth",True),
-        "pnn":(PNN,"pnn.pth",False)
+    # "model_name": (model,     weights_path, highpass)
+        "apnn":     (APNN,      "apnn.pth",     False),
+        "bdpn":     (BDPN,      "bdpn.pth",     False),
+        "dicnn":    (DICNN,     "dicnn1.pth",   False),
+        "drpnn":    (DRPNN,     "drpnn.pth",    False),
+        "fusionnet":(FusionNet, "fusionnet.pth",False),
+        "msdcnn":   (MSDCNN,    "msdcnn.pth",   False),
+        "pannet":   (PanNet,    "panet.pth",    True),
+        "pnn":      (PNN,       "pnn.pth",      False),
+        "mambfuse": (MambFuse,  "",             False)
     }
 
     model_name = hparams.method

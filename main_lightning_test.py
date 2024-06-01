@@ -9,6 +9,7 @@ from models.fusionnet import FusionNet
 from models.msdcnn import MSDCNN
 from models.pannet import PanNet
 from models.pnn import PNN
+from models.mambfuse import MambFuse
 
 import torch
 from datamodule_mat import PANDataModule
@@ -30,7 +31,8 @@ def main(hparams):
         "fusionnet":(FusionNet, "fusionnet.pth",False),
         "msdcnn":   (MSDCNN,    "msdcnn.pth",   False),
         "pannet":   (PanNet,    "panet.pth",    True),
-        "pnn":      (PNN,       "pnn.pth",      False)
+        "pnn":      (PNN,       "pnn.pth",      False),
+        "mambfuse": (MambFuse,  "",             False)
     }
 
     
