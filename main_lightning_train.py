@@ -48,7 +48,7 @@ def main(hparams):
     wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix = satelite, job_type="train", group = "mymodel", log_model="all")
     csv_logger = CSVLogger(".")
     trainer = Trainer(logger=[wandb_logger, csv_logger], 
-                      max_epochs=10)
+                      max_epochs=args.epochs)
     
     num_channels = 4 if satelite == "qb" else 8
     model = model(spectral_num=num_channels) # 4 Channels if qb 8 for else
@@ -58,6 +58,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--data_dir", default="./data/mat/qb")
     parser.add_argument("--method", default="fusionnet", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
+    parser.add_argument("--epochs", default=2)
     parser.add_argument("--accelerator", default=None)
     parser.add_argument("--devices", default=None)
     args = parser.parse_args()

@@ -40,8 +40,12 @@ class MambFuse(L.LightningModule):
             Resblock(),
             nn.Conv2d(in_channels=channel, out_channels=spectral_num, kernel_size=3, stride=1, padding=1)
         )
-
         self.deepfusion = deepFuse(device=self.device, spectral_num=spectral_num)
+        ############################################################################################################
+        # Loss
+        self.loss = nn.L1Loss()
+        ############################################################################################################
+        # Metrics
 
     def forward(self, input):
         lms = input['lms']
@@ -65,7 +69,7 @@ class MambFuse(L.LightningModule):
         y_hat = self(batch)
 
         y = batch['gt']
-        loss = torch.nn.functional.mse_loss(y_hat, y)
+        loss = self.loss(y_hat, y)
         with torch.no_grad():
             ergas = ergas_torch(y_hat, y) 
             sam = sam_torch(y_hat, y)
@@ -80,7 +84,8 @@ class MambFuse(L.LightningModule):
         y_hat = self(batch)
 
         y = batch['gt']
-        loss = torch.nn.functional.mse_loss(y_hat, y)
+        loss = self.loss(y_hat, y)
+        
         with torch.no_grad():
             ergas = ergas_torch(y_hat, y)  
             sam = sam_torch(y_hat, y)
@@ -95,7 +100,7 @@ class MambFuse(L.LightningModule):
         y_hat = self(batch)
 
         y = batch['gt']
-        loss = torch.nn.functional.mse_loss(y_hat, y)
+        loss = self.loss(y_hat, y)
 
         with torch.no_grad():
             sam = sam_torch(y_hat, y)
