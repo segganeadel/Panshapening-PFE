@@ -1,3 +1,4 @@
+import os
 from argparse import ArgumentParser
 
 from models.apnn import APNN
@@ -10,10 +11,7 @@ from models.pannet import PanNet
 from models.pnn import PNN
 
 import torch
-import os
 from datamodule_mat import PANDataModule
-from lightning import Trainer
-
 try:
     from lightning import Trainer
     from lightning.pytorch.loggers import WandbLogger, CSVLogger
