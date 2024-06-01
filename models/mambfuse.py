@@ -41,6 +41,7 @@ class MambFuse(L.LightningModule):
             nn.Conv2d(in_channels=channel, out_channels=spectral_num, kernel_size=3, stride=1, padding=1)
         )
         self.deepfusion = deepFuse(device=self.device, spectral_num=spectral_num)
+        
         ############################################################################################################
         # Loss
         self.loss = nn.L1Loss()
