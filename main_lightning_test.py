@@ -55,9 +55,8 @@ def main(hparams):
 
         artifact = wandb_logger.use_artifact(hparams.wandb_model, "model")
         print(artifact)
-        artifact_dir = artifact.download()
+        model_path = artifact.file("model.ckpt")
 
-        model_path = os.path.join(artifact_dir, "model.ckpt")
         model = model.load_from_checkpoint(model_path, spectral_num=num_channels)
     elif hparams.ckpt:
         try:
