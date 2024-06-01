@@ -9,7 +9,7 @@ from models.fusionnet import FusionNet
 from models.msdcnn import MSDCNN
 from models.pannet import PanNet
 from models.pnn import PNN
-from models.mambfuse import MambFuse
+# from models.mambfuse import MambFuse
 
 import torch
 from datamodule_mat import PANDataModule
@@ -32,7 +32,7 @@ def main(hparams):
         "msdcnn":   (MSDCNN,    "msdcnn.pth",   False),
         "pannet":   (PanNet,    "panet.pth",    True),
         "pnn":      (PNN,       "pnn.pth",      False),
-        "mambfuse": (MambFuse,  "",             False)
+        # "mambfuse": (MambFuse,  "",             False)
     }
 
     
@@ -51,12 +51,13 @@ def main(hparams):
     
     num_channels = 4 if satelite == "qb" else 8
 
-    print(hparams.wandb_model)
-    
     if hparams.wandb_model:
+
         artifact = wandb_logger.use_artifact(hparams.wandb_model, "model")
-        ckpt = artifact.download()
-        model_path = os.path.join(ckpt, "model.ckpt")
+        print(artifact)
+        artifact_dir = artifact.download()
+
+        model_path = os.path.join(artifact_dir, "model.ckpt")
         model = model.load_from_checkpoint(model_path, spectral_num=num_channels)
     elif hparams.ckpt:
         try:
