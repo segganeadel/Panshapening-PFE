@@ -48,7 +48,7 @@ def main(hparams):
     wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix = satelite, job_type="train", group = "mymodel", log_model="all")
     csv_logger = CSVLogger(".")
     trainer = Trainer(logger=[wandb_logger, csv_logger], 
-                      max_epochs=args.epochs)
+                      max_epochs=int(args.epochs))
     
     num_channels = 4 if satelite == "qb" else 8
     model = model(spectral_num=num_channels) # 4 Channels if qb 8 for else
