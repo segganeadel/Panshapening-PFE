@@ -16,9 +16,11 @@ from datamodule_mat import PANDataModule
 try:
     from lightning import Trainer
     from lightning.pytorch.loggers import WandbLogger, CSVLogger
+    from lightning.pytorch.utilities.rank_zero import rank
 except:
     from pytorch_lightning import Trainer
     from pytorch_lightning.loggers import WandbLogger, CSVLogger
+    from pytorch_lightning.utilities.rank_zero import rank
 
 def main(hparams):
     
@@ -34,7 +36,7 @@ def main(hparams):
         "pnn":      (PNN,       "pnn.pth",      False),
         "mambfuse": (MambFuse,  "",             False)
     }
-
+    print(rank)
     
     model_name = hparams.method
     satelite = hparams.satellite
@@ -43,17 +45,18 @@ def main(hparams):
     model, weights_path, highpass = models.get(model_name)
     weights_path = os.path.join(".", "weights", "QB", weights_path)
 
-    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 7, shuffle_train = False, batch_size = 1)
-
     wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix = satelite, job_type="test", group = "mine")
     csv_logger = CSVLogger(".")
-    
+
     num_channels = 4 if satelite == "qb" else 8
 
     if hparams.wandb_model:
-        artifact = wandb_logger.use_artifact(hparams.wandb_model, "model")
-        print("artifact", artifact)
-        model_path = artifact.file("model.ckpt")
+        model_path = "./artifacts"
+
+        artifact = wandb_logger.use_artifact(artifact_id, "model")
+        artifact_dir = artifact.download(root= model_path)
+        model_file = artifact.file("model.ckpt")
+
 
         model = model.load_from_checkpoint(model_path, spectral_num=num_channels)
     elif hparams.ckpt:
@@ -66,8 +69,14 @@ def main(hparams):
         model = model(num_channels)
         model.load_state_dict(torch.load(weights_path))
     
+    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 7, shuffle_train = False, batch_size = 1)
     trainer = Trainer(logger=[wandb_logger, csv_logger])
     trainer.test(model, datamodule)
+
+def download_artifact(wandb_logger, artifact_id):
+
+    return model_file
+
 
 
 if __name__ == "__main__":
