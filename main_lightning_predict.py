@@ -45,7 +45,6 @@ def main(hparams):
     model, weights_path, highpass = models.get(model_name)
     weights_path = os.path.join(".", "weights", "QB", weights_path)
 
-    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 7, shuffle_train = False, batch_size = 1)
 
     wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix=satelite)
     csv_logger = CSVLogger(".")
@@ -68,6 +67,7 @@ def main(hparams):
         model = model(num_channels)
         model.load_state_dict(torch.load(weights_path))
     
+    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 3, shuffle_train = False, batch_size = 1)
     # test_dataloader = datamodule.test_dataloader()
     results = trainer.predict(model, datamodule)
 
