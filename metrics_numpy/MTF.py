@@ -2,7 +2,7 @@ from scipy.ndimage.filters import correlate, gaussian_filter
 
 import numpy as np
 
-def MTF(I_MS,sensor,ratio):
+def MTF(I_MS, sensor, ratio):
     
     h = genMTF(ratio, sensor,I_MS.shape[2])
     
@@ -25,7 +25,7 @@ def genMTF(ratio, sensor, nbands):
         'WV3':      [0.325, 0.355, 0.360, 0.350, 0.365, 0.360, 0.335, 0.315]
     } 
     GNyq = GNyq_dict_ms.get(sensor, 0.3 * np.ones(nbands)) # Default value
-    GNyq = np.asarray(GNyq, dtype=np.float32)
+    GNyq = np.asarray(GNyq, dtype=np.float32) # Ensure that GNyq is a numpy array
     
     kernel_size = 41  
   
@@ -55,11 +55,10 @@ def fir_filter_wind(Hd,w):
 def gaussian2d (size, sigma):
     
 
-    t=np.arange(-(size-1)/2,(size+1)/2)
+    t=np.arange(-(size-1)/2, (size+1)/2)
     t1,t2=np.meshgrid(t,t)
 
     sigma=np.double(sigma)
-
     w = np.exp(-0.5*(t1/sigma)**2)*np.exp(-0.5*(t2/sigma)**2) 
 
     return w

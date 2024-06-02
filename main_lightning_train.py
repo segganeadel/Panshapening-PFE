@@ -42,7 +42,6 @@ def main(hparams):
 
     satelite = hparams.satellite
     data_dir = hparams.data_dir
-    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 2, shuffle_train = False, batch_size = 32)
 
     wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix = satelite, job_type="train", group = "mymodel", log_model="all")
     csv_logger = CSVLogger(".")
@@ -51,14 +50,15 @@ def main(hparams):
     
     num_channels = 4 if satelite == "qb" else 8
     model = model(spectral_num=num_channels) # 4 Channels if qb 8 for else
+    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 2, shuffle_train = False, batch_size = 32)
     trainer.fit(model, datamodule)
 
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--satellite", default="qb")
     parser.add_argument("--data_dir", default="./data/mat/qb")
-    parser.add_argument("--method", default="fusionnet", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
-    parser.add_argument("--epochs", default=2)
+    parser.add_argument("--method", default="mambfuse", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
+    parser.add_argument("--epochs", default= 100)
     args = parser.parse_args()
 
     main(args)
