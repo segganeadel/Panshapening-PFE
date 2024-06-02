@@ -50,9 +50,9 @@ def main(hparams):
     num_channels = 4 if satelite == "qb" else 8
 
     if hparams.wandb_model:
-        model_path = "./artifacts"
-        download_artifact(wandb_logger, hparams.wandb_model, model_path)
-        model_path = os.path.join(model_path, "model.ckpt")
+        artifact = wandb_logger.use_artifact(hparams.wandb_model, "model")
+        model_path = artifact.file()
+        print(model_path)
         model = model.load_from_checkpoint(model_path, spectral_num=num_channels)
     elif hparams.ckpt:
         try:
@@ -70,8 +70,7 @@ def main(hparams):
 
 # @rank_zero_only
 def download_artifact(wandb_logger, artifact_id, model_path):
-    artifact = wandb_logger.use_artifact(artifact_id, "model")
-    artifact.download(model_path)
+
 
 
 if __name__ == "__main__":
