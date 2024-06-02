@@ -64,11 +64,11 @@ def main(hparams):
         model = model(num_channels)
         model.load_state_dict(torch.load(weights_path))
     
-    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 7, shuffle_train = False, batch_size = 1)
-    trainer = Trainer(logger=[wandb_logger, csv_logger])
+    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 3, shuffle_train = False, batch_size = 1)
+    trainer = Trainer(logger=[wandb_logger, csv_logger], devices=1, num_nodes=1)
     trainer.test(model, datamodule)
 
-@rank_zero_only
+# @rank_zero_only
 def download_artifact(wandb_logger, artifact_id, model_path):
     artifact = wandb_logger.use_artifact(artifact_id, "model")
     artifact.download(model_path)
