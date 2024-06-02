@@ -54,8 +54,7 @@ def main(hparams):
 
     if hparams.wandb_model:
         artifact = wandb_logger.use_artifact(hparams.wandb_model, "model")
-        ckpt = artifact.download()
-        model_path = os.path.join(ckpt, "model.ckpt")
+        model_path = artifact.file()
         model = model.load_from_checkpoint(model_path, spectral_num=num_channels)
     elif hparams.ckpt:
         try:
@@ -80,8 +79,6 @@ def main(hparams):
 def generate_image_out (image_out, batch_n, model_name):
     count = batch_n * image_out.shape[0]
     for index, image in enumerate(image_out):    
-        print(image.shape, "image_out")
-        print(image.max())
         path_out = f"out/{model_name}/image_out_{count + index}.png"
         cv.imwrite(path_out, image)
 

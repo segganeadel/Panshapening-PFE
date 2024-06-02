@@ -16,11 +16,9 @@ from datamodule_mat import PANDataModule
 try:
     from lightning import Trainer
     from lightning.pytorch.loggers import WandbLogger, CSVLogger
-    from lightning.pytorch.utilities import rank_zero_only
 except:
     from pytorch_lightning import Trainer
     from pytorch_lightning.loggers import WandbLogger, CSVLogger
-    from pytorch_lightning.utilities import rank_zero_only
 
 def main(hparams):
     
@@ -53,7 +51,6 @@ def main(hparams):
     if hparams.wandb_model:
         artifact = wandb_logger.use_artifact(hparams.wandb_model, "model")
         model_path = artifact.file()
-        print(model_path)
         model = model.load_from_checkpoint(model_path, spectral_num=num_channels)
     elif hparams.ckpt:
         try:

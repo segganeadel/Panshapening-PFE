@@ -31,15 +31,15 @@ class MambFuse(L.LightningModule):
         super(MambFuse, self).__init__()
         self.spectral_num = spectral_num
 
-        # self.backbone_recept = nn.Sequential(  # method 2: 4 resnet repeated blocks
-        #     nn.Conv2d(in_channels=spectral_num, out_channels=channel, kernel_size=3, stride=1, padding=1),
-        #     nn.ReLU(inplace=True),
-        #     Resblock(),
-        #     Resblock(),
-        #     Resblock(),
-        #     Resblock(),
-        #     nn.Conv2d(in_channels=channel, out_channels=spectral_num, kernel_size=3, stride=1, padding=1)
-        # )
+        self.backbone_recept = nn.Sequential(  # method 2: 4 resnet repeated blocks
+            nn.Conv2d(in_channels=spectral_num, out_channels=channel, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(inplace=True),
+            Resblock(),
+            Resblock(),
+            Resblock(),
+            Resblock(),
+            nn.Conv2d(in_channels=channel, out_channels=spectral_num, kernel_size=3, stride=1, padding=1)
+        )
         self.deepfusion = deepFuse(device=self.device, spectral_num=spectral_num)
 
         ############################################################################################################
@@ -55,7 +55,7 @@ class MambFuse(L.LightningModule):
         pan_concat = pan.repeat(1, self.spectral_num, 1, 1)  # Bsx8x64x64
         out = torch.sub(pan_concat, lms)
 
-        # out = self.backbone_recept(out)
+        out = self.backbone_recept(out)
         out = self.deepfusion(out)
 
         output = torch.add(out, lms) 
