@@ -44,8 +44,6 @@ def main(hparams):
     model, weights_path, highpass = models.get(model_name)
     weights_path = os.path.join(".", "weights", "QB", weights_path)
 
-    wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix = satelite, job_type="test", group = "mine")
-    csv_logger = CSVLogger(".")
 
     num_channels = 4 if satelite == "qb" else 8
 
@@ -65,12 +63,10 @@ def main(hparams):
         model.load_state_dict(torch.load(weights_path))
     
     datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 3, shuffle_train = False, batch_size = 1)
+    wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix = satelite, job_type="test", group = "mine")
+    csv_logger = CSVLogger(".")
     trainer = Trainer(logger=[wandb_logger, csv_logger], devices=1, num_nodes=1)
     trainer.test(model, datamodule)
-
-# @rank_zero_only
-def download_artifact(wandb_logger, artifact_id, model_path):
-
 
 
 if __name__ == "__main__":

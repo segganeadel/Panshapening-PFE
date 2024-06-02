@@ -49,7 +49,7 @@ def main(hparams):
 
     wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix=satelite)
     csv_logger = CSVLogger(".")
-    trainer = Trainer(logger=[wandb_logger, csv_logger])
+    trainer = Trainer(logger=[wandb_logger, csv_logger], devices=1, num_nodes=1)
     
     num_channels = 4 if satelite == "qb" else 8
 
