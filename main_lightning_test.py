@@ -16,11 +16,11 @@ from datamodule_mat import PANDataModule
 try:
     from lightning import Trainer
     from lightning.pytorch.loggers import WandbLogger, CSVLogger
-    from lightning.pytorch.utilities.rank_zero import rank
+    from lightning.pytorch.utilities import rank_zero_only
 except:
     from pytorch_lightning import Trainer
     from pytorch_lightning.loggers import WandbLogger, CSVLogger
-    from pytorch_lightning.utilities.rank_zero import rank
+    from pytorch_lightning.utilities import rank_zero_only
 
 def main(hparams):
     
@@ -36,7 +36,6 @@ def main(hparams):
         "pnn":      (PNN,       "pnn.pth",      False),
         "mambfuse": (MambFuse,  "",             False)
     }
-    print(rank)
     
     model_name = hparams.method
     satelite = hparams.satellite
@@ -52,12 +51,8 @@ def main(hparams):
 
     if hparams.wandb_model:
         model_path = "./artifacts"
-
-        artifact = wandb_logger.use_artifact(artifact_id, "model")
-        artifact_dir = artifact.download(root= model_path)
-        model_file = artifact.file("model.ckpt")
-
-
+        download_artifact(wandb_logger, hparams.wandb_model, model_path)
+        model_path = os.path.join(model_path, "model.ckpt")
         model = model.load_from_checkpoint(model_path, spectral_num=num_channels)
     elif hparams.ckpt:
         try:
@@ -73,10 +68,10 @@ def main(hparams):
     trainer = Trainer(logger=[wandb_logger, csv_logger])
     trainer.test(model, datamodule)
 
-def download_artifact(wandb_logger, artifact_id):
-
-    return model_file
-
+@rank_zero_only
+def download_artifact(wandb_logger, artifact_id, model_path):
+    artifact = wandb_logger.use_artifact(artifact_id, "model")
+    artifact.download(model_path)
 
 
 if __name__ == "__main__":
