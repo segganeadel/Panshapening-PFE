@@ -471,15 +471,10 @@ class deepFuse(nn.Module):
 
 
     def forward_features(self, x, x_size):
-        x_size = (x.shape[2], x.shape[3])
-
         for layer in self.layers:
             x = layer(x, x_size)
-
         x = self.norm(x)  # b seq_len c
-
         x = self.patch_unembed(x, x_size)
-
         return x
 
     def forward(self, x):
