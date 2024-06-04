@@ -9,6 +9,7 @@ from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
 from einops import rearrange, repeat
 
+
 class PatchEmbed(nn.Module):
     def __init__(self, 
                  img_size=224, 
@@ -407,7 +408,6 @@ class deepFuse(nn.Module):
         self.embed_dim = embed_dim
         self.patch_norm = patch_norm
         self.num_features = embed_dim
-        
 
         # transfer 2D feature map into 1D token sequence, pay attention to whether using normalization
         self.patch_embed = PatchEmbed(
