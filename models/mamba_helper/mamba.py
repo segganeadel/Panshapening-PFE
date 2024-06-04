@@ -340,7 +340,6 @@ class RSSBlock(nn.Module):
 class RSSGroup(nn.Module):
     def __init__(self,
                  dim,
-                 input_resolution,
                  depth,
                  d_state=16,
                  mlp_ratio=4.,
@@ -353,7 +352,6 @@ class RSSGroup(nn.Module):
         super(RSSGroup, self).__init__()
 
         self.dim = dim
-        self.input_resolution = input_resolution # [64, 64]
 
         self.blocks = nn.ModuleList()
         for i in range(depth):
@@ -364,7 +362,6 @@ class RSSGroup(nn.Module):
                 attn_drop_rate=0,
                 d_state=d_state,
                 expand=mlp_ratio,
-                input_resolution=input_resolution,
                 is_light_sr=is_light_sr,
                 **kwargs))
 
@@ -420,8 +417,6 @@ class deepFuse(nn.Module):
         #     in_chans=embed_dim,
         #     embed_dim=embed_dim,
         #     norm_layer=norm_layer if self.patch_norm else None)
-        # patches_resolution = self.patch_embed.patches_resolution
-        # self.patches_resolution = patches_resolution
 
         # return 2D feature map from 1D token sequence
         self.patch_unembed = PatchUnEmbed(
@@ -439,7 +434,6 @@ class deepFuse(nn.Module):
         for i_layer in range(self.num_layers):
             layer = RSSGroup(
                 dim=embed_dim,
-                input_resolution=(patches_resolution[0], patches_resolution[1]),
                 depth=depths[i_layer],
                 d_state = d_state,
                 mlp_ratio=self.mlp_ratio,
