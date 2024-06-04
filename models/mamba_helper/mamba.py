@@ -13,7 +13,7 @@ class PatchEmbed(nn.Module):
     def __init__(self, 
                  img_size=224, 
                  patch_size=4, 
-                 in_chans=4, 
+                 in_chans=3, 
                  embed_dim=96, 
                  norm_layer=None):
         super().__init__()
@@ -34,7 +34,7 @@ class PatchEmbed(nn.Module):
             self.norm = None
 
     def forward(self, x):
-        x = x.flatten(2).transpose(1, 2)
+        x = x.flatten(2).transpose(1, 2)  # b Ph*Pw c
         if self.norm is not None:
             x = self.norm(x)
         return x
@@ -328,6 +328,7 @@ class RSSBlock(nn.Module):
 class RSSGroup(nn.Module):
     def __init__(self,
                  dim,
+                 input_resolution,
                  depth,
                  d_state=16,
                  mlp_ratio=4.,
@@ -340,6 +341,7 @@ class RSSGroup(nn.Module):
         super(RSSGroup, self).__init__()
 
         self.dim = dim
+        self.input_resolution = input_resolution # [64, 64]
 
         self.blocks = nn.ModuleList()
         for i in range(depth):
@@ -350,6 +352,7 @@ class RSSGroup(nn.Module):
                 attn_drop_rate=0,
                 d_state=d_state,
                 expand=mlp_ratio,
+                input_resolution=input_resolution,
                 is_light_sr=is_light_sr,
                 **kwargs))
 
@@ -376,15 +379,22 @@ class deepFuse(nn.Module):
                  spectral_num=4,
                  embed_dim=96,
                  depths=(2, 2),
+                 drop_rate=0.,
                  d_state = 16,
                  mlp_ratio=2.,
                  drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm,
                  patch_norm=True,
+                 upscale=2,
+                 img_range=1.,
                  **kwargs):
         super(deepFuse, self).__init__()
         num_in_ch = spectral_num
         num_out_ch = spectral_num
+        num_feat = 64
+        self.img_range = img_range
+        self.mean = torch.zeros(1, 1, 1, 1)
+        self.upscale = upscale
         self.mlp_ratio=mlp_ratio
         # ------------------------- 1, shallow feature extraction ------------------------- #
         self.conv_first = nn.Conv2d(num_in_ch, embed_dim, 3, 1, 1)
@@ -402,6 +412,8 @@ class deepFuse(nn.Module):
             in_chans=embed_dim,
             embed_dim=embed_dim,
             norm_layer=norm_layer if self.patch_norm else None)
+        patches_resolution = self.patch_embed.patches_resolution
+        self.patches_resolution = patches_resolution
 
         # return 2D feature map from 1D token sequence
         self.patch_unembed = PatchUnEmbed(
@@ -411,6 +423,8 @@ class deepFuse(nn.Module):
             embed_dim=embed_dim,
             norm_layer=norm_layer if self.patch_norm else None)
 
+        self.pos_drop = nn.Dropout(p=drop_rate)
+
         # stochastic depth
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
 
@@ -419,6 +433,7 @@ class deepFuse(nn.Module):
         for i_layer in range(self.num_layers):
             layer = RSSGroup(
                 dim=embed_dim,
+                input_resolution=(patches_resolution[0], patches_resolution[1]),
                 depth=depths[i_layer],
                 d_state = d_state,
                 mlp_ratio=self.mlp_ratio,
@@ -452,16 +467,26 @@ class deepFuse(nn.Module):
     def forward_features(self, x):
         x_size = (x.shape[2], x.shape[3])
         x = self.patch_embed(x) # N,L,C
+
+        x = self.pos_drop(x)
+
         for layer in self.layers:
             x = layer(x, x_size)
+
         x = self.norm(x)  # b seq_len c
+
         x = self.patch_unembed(x, x_size)
+
         return x
 
     def forward(self, x):
+        self.mean = self.mean.type_as(x)
+        x = (x - self.mean) * self.img_range
+
         x_first = self.conv_first(x)
-        res = self.conv_after_body(self.forward_features(x_first))
-        res = res + x_first
+        res = self.conv_after_body(self.forward_features(x_first)) + x_first
         x = x + self.conv_last(res)
+
+        x = x / self.img_range + self.mean
 
         return x
