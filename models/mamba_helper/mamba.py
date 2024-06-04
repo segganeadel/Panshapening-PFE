@@ -9,17 +9,6 @@ from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
 from einops import rearrange, repeat
 
-class OverlapPatchEmbed(nn.Module):
-    def __init__(self, in_c=3, embed_dim=96, bias=False):
-        super(OverlapPatchEmbed, self).__init__()
-
-        self.proj = nn.Conv2d(in_c, embed_dim, kernel_size=3, stride=1, padding=1, bias=bias)
-
-    def forward(self, x):
-        x = self.proj(x)
-        x = rearrange(x, "b c h w -> b (h w) c").contiguous()
-        return x
-
 class PatchEmbed(nn.Module):
     def __init__(self, 
                  img_size=224, 
@@ -419,10 +408,6 @@ class deepFuse(nn.Module):
         self.embed_dim = embed_dim
         self.patch_norm = patch_norm
         self.num_features = embed_dim
-
-        # overlap patch embedding
-        self.overlap_patch_embed = OverlapPatchEmbed(in_c=num_in_ch, embed_dim=embed_dim)
-
 
         # transfer 2D feature map into 1D token sequence, pay attention to whether using normalization
         self.patch_embed = PatchEmbed(
