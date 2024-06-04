@@ -399,7 +399,7 @@ class deepFuse(nn.Module):
         num_out_ch = spectral_num
         self.mlp_ratio=mlp_ratio
         # ------------------------- 1, shallow feature extraction ------------------------- #
-        # self.conv_first = nn.Conv2d(num_in_ch, embed_dim, 3, 1, 1)
+        self.conv_first = nn.Conv2d(num_in_ch, embed_dim, 3, 1, 1)
 
         # ------------------------- 2, deep feature extraction ------------------------- #
         self.num_layers = len(depths)
