@@ -411,12 +411,12 @@ class deepFuse(nn.Module):
         self.patch_embed_overlap = OverlapPatchEmbed(in_c=num_in_ch, embed_dim=embed_dim)
 
         # transfer 2D feature map into 1D token sequence, pay attention to whether using normalization
-        # self.patch_embed = PatchEmbed(
-        #     img_size=img_size,
-        #     patch_size=patch_size,
-        #     in_chans=embed_dim,
-        #     embed_dim=embed_dim,
-        #     norm_layer=norm_layer if self.patch_norm else None)
+        self.patch_embed = PatchEmbed(
+            img_size=img_size,
+            patch_size=patch_size,
+            in_chans=embed_dim,
+            embed_dim=embed_dim,
+            norm_layer=norm_layer if self.patch_norm else None)
 
         # return 2D feature map from 1D token sequence
         self.patch_unembed = PatchUnEmbed(
@@ -464,7 +464,9 @@ class deepFuse(nn.Module):
             nn.init.constant_(m.weight, 1.0)
 
 
-    def forward_features(self, x, x_size):
+    def forward_features(self, x):
+        x_size = (x.shape[2], x.shape[3])
+        x = self.patch_embed(x) # N,L,C
         for layer in self.layers:
             x = layer(x, x_size)
         x = self.norm(x)  # b seq_len c
@@ -472,12 +474,9 @@ class deepFuse(nn.Module):
         return x
 
     def forward(self, x):
-        x_size = (x.shape[2], x.shape[3])
-        # resblocks here
-        
-        ####
-        x_emb = self.patch_embed_overlap(x)  # N,L,C
-        res = self.conv_after_body(self.forward_features(x_emb, x_size))
+        x_first = self.conv_first(x)
+        res = self.conv_after_body(self.forward_features(x_first))
+        res = res + x_first
         x = x + self.conv_last(res)
 
         return x
