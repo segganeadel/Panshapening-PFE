@@ -470,7 +470,7 @@ class deepFuse(nn.Module):
 
     def forward_features(self, x):
         x_size = (x.shape[2], x.shape[3])
-    
+
         x = self.patch_embed(x) # N,L,C
 
         x = self.pos_drop(x)
