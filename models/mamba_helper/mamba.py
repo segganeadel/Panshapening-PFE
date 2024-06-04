@@ -27,16 +27,17 @@ class PatchEmbed(nn.Module):
 
         self.in_chans = in_chans
         self.embed_dim = embed_dim
-
+        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=3, stride=1, padding=1, bias=bias)
         if norm_layer is not None:
             self.norm = norm_layer(embed_dim)
         else:
             self.norm = None
 
     def forward(self, x):
-        x = x.flatten(2).transpose(1, 2)  # b Ph*Pw c
         if self.norm is not None:
             x = self.norm(x)
+        x = self.proj(x)
+        x = rearrange(x, "b c h w -> b (h w) c").contiguous()
         return x
 
 class PatchUnEmbed(nn.Module):
