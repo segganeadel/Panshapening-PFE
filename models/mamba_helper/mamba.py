@@ -388,12 +388,10 @@ class deepFuse(nn.Module):
                  drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm,
                  patch_norm=True,
-                 img_range=1.,
                  **kwargs):
         super(deepFuse, self).__init__()
         num_in_ch = spectral_num
         num_out_ch = spectral_num
-        self.img_range = img_range
         self.mean = torch.zeros(1, 1, 1, 1)
         self.mlp_ratio=mlp_ratio
         # ------------------------- 1, shallow feature extraction ------------------------- #
@@ -478,13 +476,13 @@ class deepFuse(nn.Module):
 
     def forward(self, x):
         self.mean = self.mean.type_as(x)
-        x = (x - self.mean) * self.img_range
+        x = (x - self.mean)
 
         x_first = self.conv_first(x)
         
         res = self.conv_after_body(self.forward_features(x_first)) + x_first
         x = x + self.conv_last(res)
 
-        x = x / self.img_range + self.mean
+        x = x + self.mean
 
         return x
