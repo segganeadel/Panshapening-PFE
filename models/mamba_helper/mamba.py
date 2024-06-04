@@ -383,22 +383,18 @@ class deepFuse(nn.Module):
                  spectral_num=4,
                  embed_dim=96,
                  depths=(2, 2),
-                 drop_rate=0.,
                  d_state = 16,
                  mlp_ratio=2.,
                  drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm,
                  patch_norm=True,
-                 upscale=2,
                  img_range=1.,
                  **kwargs):
         super(deepFuse, self).__init__()
         num_in_ch = spectral_num
         num_out_ch = spectral_num
-        num_feat = 64
         self.img_range = img_range
         self.mean = torch.zeros(1, 1, 1, 1)
-        self.upscale = upscale
         self.mlp_ratio=mlp_ratio
         # ------------------------- 1, shallow feature extraction ------------------------- #
         self.conv_first = nn.Conv2d(num_in_ch, embed_dim, 3, 1, 1)
@@ -426,8 +422,6 @@ class deepFuse(nn.Module):
             in_chans=embed_dim,
             embed_dim=embed_dim,
             norm_layer=norm_layer if self.patch_norm else None)
-
-        self.pos_drop = nn.Dropout(p=drop_rate)
 
         # stochastic depth
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
@@ -472,8 +466,6 @@ class deepFuse(nn.Module):
         x_size = (x.shape[2], x.shape[3])
 
         x = self.patch_embed(x) # N,L,C
-
-        x = self.pos_drop(x)
 
         for layer in self.layers:
             x = layer(x, x_size)
