@@ -37,6 +37,7 @@ class PatchEmbed(nn.Module):
             self.norm = None
 
     def forward(self, x):
+        x = x.flatten(2).transpose(1, 2)
         if self.norm is not None:
             x = self.norm(x)
         # x = self.proj(x)
