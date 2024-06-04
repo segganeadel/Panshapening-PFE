@@ -13,7 +13,7 @@ class PatchEmbed(nn.Module):
     def __init__(self, 
                  img_size=224, 
                  patch_size=4, 
-                 in_chans=3, 
+                 in_chans=4, 
                  embed_dim=96, 
                  norm_layer=None):
         super().__init__()
@@ -27,7 +27,9 @@ class PatchEmbed(nn.Module):
 
         self.in_chans = in_chans
         self.embed_dim = embed_dim
-        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=3, stride=1, padding=1, bias=bias)
+
+        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size= patch_size, stride=1, padding=1, bias=False)
+
         if norm_layer is not None:
             self.norm = norm_layer(embed_dim)
         else:
