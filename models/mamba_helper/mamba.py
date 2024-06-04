@@ -483,7 +483,10 @@ class deepFuse(nn.Module):
         
         ####
         x_emb = self.patch_embed_overlap(x)  # N,L,C
-        res = self.conv_after_body(self.forward_features(x_emb, x_size)) + x_emb
+        res = self.conv_after_body(self.forward_features(x_emb, x_size))
+        print(res.shape, x_emb.shape, x.shape, x_size)
+        res = res + x_emb
+        print(res.shape, x_emb.shape, x.shape, x_size)
         x = x + self.conv_last(res)
 
         return x
