@@ -153,6 +153,16 @@ class VSSM(nn.Module):
             padding=(d_conv - 1) // 2,
             **factory_kwargs,
         )
+        self.conv2d_4 = nn.Conv2d(
+            in_channels=self.d_inner,
+            out_channels=self.d_inner,
+            groups=self.d_inner,
+            bias=conv_bias,
+            kernel_size=d_conv,
+            padding=(d_conv - 1) // 2,
+            **factory_kwargs,
+        )
+
 
         self.x_proj = (
             nn.Linear(self.d_inner, (self.dt_rank + self.d_state * 2), bias=False, **factory_kwargs),
@@ -287,7 +297,8 @@ class VSSM(nn.Module):
         # Chunk 1
         x = x.permute(0, 3, 1, 2).contiguous()
         x = F.silu(self.conv2d(x))
-        x = F.silu(self.conv2d_2(x))  # New conv layer 2
+        x = F.silu(self.conv2d_2(x)) 
+        x = F.silu(self.conv2d_4(x))# New conv layer 2
         x = F.silu(self.conv2d_3(x))  # New conv layer 3
         y1, y2, y3, y4 = self.ss2d(x)
         assert y1.dtype == torch.float32
@@ -412,21 +423,20 @@ class deepFuse(nn.Module):
         num_in_ch = spectral_num
         num_out_ch = spectral_num
         num_feat = 64
-        squeeze_factor = 16
         self.img_range = img_range
         self.mean = torch.zeros(1, 1, 1, 1)
         self.upscale = upscale
         self.mlp_ratio = mlp_ratio
-        
-        # ------------------------- 1, shallow feature extraction with attention ------------------------- #
+        # ------------------------- 1, shallow feature extraction changed  to a sequential ------------------------- #
         self.conv_first = nn.Sequential(
-            SelfAttentionBlock(num_feat),
-            nn.Conv2d(num_feat, num_feat // squeeze_factor, 1, padding=0),
+            nn.Conv2d(num_in_ch, embed_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(embed_dim),
             nn.ReLU(inplace=True),
-            nn.Conv2d(num_feat // squeeze_factor, num_feat, 1, padding=0),
-            nn.Sigmoid()
+            nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(embed_dim),
+            nn.ReLU(inplace=True)
         )
-        
+
         # ------------------------- 2, deep feature extraction ------------------------- #
         self.num_layers = len(depths)
         self.embed_dim = embed_dim
@@ -517,26 +527,3 @@ class deepFuse(nn.Module):
         x = x / self.img_range + self.mean
 
         return x
-class SelfAttentionBlock(nn.Module):
-    def __init__(self, in_channels):
-        super(SelfAttentionBlock, self).__init__()
-        self.query_conv = nn.Conv2d(in_channels, in_channels // 8, kernel_size=1)
-        self.key_conv = nn.Conv2d(in_channels, in_channels // 8, kernel_size=1)
-        self.value_conv = nn.Conv2d(in_channels, in_channels, kernel_size=1)
-        self.gamma = nn.Parameter(torch.zeros(1))
-
-    def forward(self, x):
-        batch_size, channels, width, height = x.size()
-        proj_query = self.query_conv(x).view(batch_size, -1, width * height).permute(0, 2, 1)
-        proj_key = self.key_conv(x).view(batch_size, -1, width * height)
-
-        energy = torch.bmm(proj_query, proj_key)
-        attention = torch.softmax(energy, dim=-1)
-
-        proj_value = self.value_conv(x).view(batch_size, -1, width * height)
-
-        out = torch.bmm(proj_value, attention.permute(0, 2, 1))
-        out = out.view(batch_size, channels, width, height)
-
-        out = self.gamma * out + x
-        return out
