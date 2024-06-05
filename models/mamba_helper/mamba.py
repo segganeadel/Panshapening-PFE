@@ -412,18 +412,21 @@ class deepFuse(nn.Module):
         num_in_ch = spectral_num
         num_out_ch = spectral_num
         num_feat = 64
-        self.img_range = img_range
         squeeze_factor = 16
+        self.img_range = img_range
         self.mean = torch.zeros(1, 1, 1, 1)
         self.upscale = upscale
         self.mlp_ratio = mlp_ratio
-        # ------------------------- 1, shallow feature extraction changed  to a sequential ------------------------- #
+        
+        # ------------------------- 1, shallow feature extraction with attention ------------------------- #
         self.conv_first = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
+            SelfAttentionBlock(num_feat),
             nn.Conv2d(num_feat, num_feat // squeeze_factor, 1, padding=0),
             nn.ReLU(inplace=True),
             nn.Conv2d(num_feat // squeeze_factor, num_feat, 1, padding=0),
-            nn.Sigmoid())
+            nn.Sigmoid()
+        )
+        
         # ------------------------- 2, deep feature extraction ------------------------- #
         self.num_layers = len(depths)
         self.embed_dim = embed_dim
@@ -514,3 +517,27 @@ class deepFuse(nn.Module):
         x = x / self.img_range + self.mean
 
         return x
+
+class SelfAttentionBlock(nn.Module):
+    def __init__(self, in_channels):
+        super(SelfAttentionBlock, self).__init__()
+        self.query_conv = nn.Conv2d(in_channels, in_channels // 8, kernel_size=1)
+        self.key_conv = nn.Conv2d(in_channels, in_channels // 8, kernel_size=1)
+        self.value_conv = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        self.gamma = nn.Parameter(torch.zeros(1))
+
+    def forward(self, x):
+        batch_size, channels, width, height = x.size()
+        proj_query = self.query_conv(x).view(batch_size, -1, width * height).permute(0, 2, 1)
+        proj_key = self.key_conv(x).view(batch_size, -1, width * height)
+
+        energy = torch.bmm(proj_query, proj_key)
+        attention = torch.softmax(energy, dim=-1)
+
+        proj_value = self.value_conv(x).view(batch_size, -1, width * height)
+
+        out = torch.bmm(proj_value, attention.permute(0, 2, 1))
+        out = out.view(batch_size, channels, width, height)
+
+        out = self.gamma * out + x
+        return out
