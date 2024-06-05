@@ -100,7 +100,7 @@ class VSSM(nn.Module):
             d_model,
             d_state=16,
             d_conv=3,
-            expand=2.,
+            expand=4.,
             dt_rank="auto",
             dt_min=0.001,
             dt_max=0.1,
@@ -314,7 +314,7 @@ class RSSBlock(nn.Module):
             norm_layer: Callable[..., torch.nn.Module] = partial(nn.LayerNorm, eps=1e-6),
             attn_drop_rate: float = 0,
             d_state: int = 16,
-            expand: float = 2.,
+            expand: float = 4,
             is_light_sr: bool = False,
             **kwargs,
     ):
@@ -400,8 +400,8 @@ class deepFuse(nn.Module):
                  embed_dim=96,
                  depths=(2, 2),
                  drop_rate=0.,
-                 d_state = 16,
-                 mlp_ratio=2.,
+                 d_state=16,
+                 mlp_ratio=4.,
                  drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm,
                  patch_norm=True,
@@ -415,9 +415,16 @@ class deepFuse(nn.Module):
         self.img_range = img_range
         self.mean = torch.zeros(1, 1, 1, 1)
         self.upscale = upscale
-        self.mlp_ratio=mlp_ratio
-        # ------------------------- 1, shallow feature extraction ------------------------- #
-        self.conv_first = nn.Conv2d(num_in_ch, embed_dim, 3, 1, 1)
+        self.mlp_ratio = mlp_ratio
+        # ------------------------- 1, shallow feature extraction changed  to a sequential convs ------------------------- #
+        self.conv_first = nn.Sequential(
+            nn.Conv2d(num_in_ch, embed_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(embed_dim),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(embed_dim),
+            nn.ReLU(inplace=True)
+        )
 
         # ------------------------- 2, deep feature extraction ------------------------- #
         self.num_layers = len(depths)
@@ -455,7 +462,7 @@ class deepFuse(nn.Module):
                 dim=embed_dim,
                 input_resolution=(patches_resolution[0], patches_resolution[1]),
                 depth=depths[i_layer],
-                d_state = d_state,
+                d_state=d_state,
                 mlp_ratio=self.mlp_ratio,
                 drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],  # no impact on SR results
                 norm_layer=norm_layer,
@@ -469,7 +476,7 @@ class deepFuse(nn.Module):
         # build the last conv layer in the end of all residual groups
         self.conv_after_body = nn.Conv2d(embed_dim, embed_dim, 3, 1, 1)
 
-        # -------------------------3. high-quality image reconstruction ------------------------ #
+        # ------------------------- 3. high-quality image reconstruction ------------------------ #
         self.conv_last = nn.Conv2d(embed_dim, num_out_ch, 3, 1, 1)
 
         self.apply(self._init_weights)
@@ -483,17 +490,16 @@ class deepFuse(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-
     def forward_features(self, x):
         x_size = (x.shape[2], x.shape[3])
-        x = self.patch_embed(x) # N,L,C
+        x = self.patch_embed(x)  # N, L, C
 
         x = self.pos_drop(x)
 
         for layer in self.layers:
             x = layer(x, x_size)
 
-        x = self.norm(x)  # b seq_len c
+        x = self.norm(x)  # b, seq_len, c
 
         x = self.patch_unembed(x, x_size)
 
