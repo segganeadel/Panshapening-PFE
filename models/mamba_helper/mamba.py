@@ -100,7 +100,7 @@ class VSSM(nn.Module):
             d_model,
             d_state=16,
             d_conv=3,
-            expand=3.,
+            expand=2.,
             dt_rank="auto",
             dt_min=0.001,
             dt_max=0.1,
@@ -314,7 +314,7 @@ class RSSBlock(nn.Module):
             norm_layer: Callable[..., torch.nn.Module] = partial(nn.LayerNorm, eps=1e-6),
             attn_drop_rate: float = 0,
             d_state: int = 16,
-            expand: float = 3.,
+            expand: float = 2.,
             is_light_sr: bool = False,
             **kwargs,
     ):
@@ -351,7 +351,7 @@ class RSSGroup(nn.Module):
                  input_resolution,
                  depth,
                  d_state=16,
-                 mlp_ratio=3.,
+                 mlp_ratio=4.,
                  drop_path=0.,
                  norm_layer=nn.LayerNorm,
                  img_size=None,
@@ -401,7 +401,7 @@ class deepFuse(nn.Module):
                  depths=(2, 2),
                  drop_rate=0.,
                  d_state=16,
-                 mlp_ratio=3.,
+                 mlp_ratio=2.,
                  drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm,
                  patch_norm=True,
@@ -413,19 +413,17 @@ class deepFuse(nn.Module):
         num_out_ch = spectral_num
         num_feat = 64
         self.img_range = img_range
+        squeeze_factor = 16
         self.mean = torch.zeros(1, 1, 1, 1)
         self.upscale = upscale
         self.mlp_ratio = mlp_ratio
-        # ------------------------- 1, shallow feature extraction changed  to a sequential cons ------------------------- #
+        # ------------------------- 1, shallow feature extraction changed  to a sequential ------------------------- #
         self.conv_first = nn.Sequential(
-            nn.Conv2d(num_in_ch, embed_dim, kernel_size=3, padding=1),
-            nn.BatchNorm2d(embed_dim),
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(num_feat, num_feat // squeeze_factor, 1, padding=0),
             nn.ReLU(inplace=True),
-            nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1),
-            nn.BatchNorm2d(embed_dim),
-            nn.ReLU(inplace=True)
-        )
-
+            nn.Conv2d(num_feat // squeeze_factor, num_feat, 1, padding=0),
+            nn.Sigmoid())
         # ------------------------- 2, deep feature extraction ------------------------- #
         self.num_layers = len(depths)
         self.embed_dim = embed_dim
