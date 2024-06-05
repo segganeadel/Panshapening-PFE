@@ -134,6 +134,25 @@ class VSSM(nn.Module):
             **factory_kwargs,
         )
 
+        # Additional convolutional layers
+        self.conv2d_2 = nn.Conv2d(
+            in_channels=self.d_inner,
+            out_channels=self.d_inner,
+            groups=self.d_inner,
+            bias=conv_bias,
+            kernel_size=d_conv,
+            padding=(d_conv - 1) // 2,
+            **factory_kwargs,
+        )
+        self.conv2d_3 = nn.Conv2d(
+            in_channels=self.d_inner,
+            out_channels=self.d_inner,
+            groups=self.d_inner,
+            bias=conv_bias,
+            kernel_size=d_conv,
+            padding=(d_conv - 1) // 2,
+            **factory_kwargs,
+        )
 
         self.x_proj = (
             nn.Linear(self.d_inner, (self.dt_rank + self.d_state * 2), bias=False, **factory_kwargs),
@@ -268,6 +287,8 @@ class VSSM(nn.Module):
         # Chunk 1
         x = x.permute(0, 3, 1, 2).contiguous()
         x = F.silu(self.conv2d(x))
+        x = F.silu(self.conv2d_2(x))  # New conv layer 2
+        x = F.silu(self.conv2d_3(x))  # New conv layer 3
         y1, y2, y3, y4 = self.ss2d(x)
         assert y1.dtype == torch.float32
         y = y1 + y2 + y3 + y4
@@ -279,7 +300,6 @@ class VSSM(nn.Module):
         y = y * F.silu(z)
         # Linear projection
         out = self.out_proj(y)
-
 
         if self.dropout is not None:
             out = self.dropout(out)
