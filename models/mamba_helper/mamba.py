@@ -517,7 +517,6 @@ class deepFuse(nn.Module):
         x = x / self.img_range + self.mean
 
         return x
-
 class SelfAttentionBlock(nn.Module):
     def __init__(self, in_channels):
         super(SelfAttentionBlock, self).__init__()
