@@ -367,12 +367,14 @@ class RSSBlock(nn.Module):
         # Additional convolutional block
         x = x*self.skip_scale2 + self.conv_blk(self.ln_2(x).permute(0, 3, 1, 2).contiguous()).permute(0, 2, 3, 1).contiguous()
         
+        # Resize skip_out if needed to match x
+        skip_out = F.interpolate(skip_out, size=x.shape[-2:], mode='nearest')
+        
         # Add skip connection
         x += skip_out
         
         x = x.view(B, -1, C).contiguous()
         return x
-
 
 class RSSGroup(nn.Module):
     def __init__(self,
