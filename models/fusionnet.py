@@ -103,7 +103,6 @@ class FusionNet(L.LightningModule):
         y_hat = self(batch)
 
         y = batch['gt']
-        # loss = torch.nn.functional.mse_loss(y_hat, y)
 
         with torch.no_grad():
             sam = sam_torch(y_hat, y)
@@ -115,7 +114,6 @@ class FusionNet(L.LightningModule):
                         'test_ergas': ergas,
                         'test_q2n': q2n}, 
                             prog_bar=True)
-        # return loss
 
     def predict_step(self, batch, batch_idx):
 

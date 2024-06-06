@@ -70,7 +70,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--satellite", default="qb")
     parser.add_argument("--data_dir", default="./data/mat/qb")
-    parser.add_argument("--method", default="fusionnet", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
+    parser.add_argument("--method", default="pnn", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
     parser.add_argument("--wandb_model", default=None)
     parser.add_argument("--ckpt", default=None)
     args = parser.parse_args()

@@ -70,7 +70,7 @@ def main(hparams):
     # test_dataloader = datamodule.test_dataloader()
     results = trainer.predict(model, datamodule)
 
-    os.makedirs(f"out/{model_name}", exist_ok=True)
+    os.makedirs(f"{hparams.outdir}/{model_name}", exist_ok=True)
     
     for index ,result in enumerate(results):
         result = result[:,:3].numpy().transpose(0,2,3,1)*255
@@ -87,6 +87,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--satellite", default="qb")
     parser.add_argument("--data_dir", default="./data/mat/qb")
+    parser.add_argument("--outdir", default="./out")
     parser.add_argument("--method", default="fusionnet", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
     parser.add_argument("--wandb_model", default=None)
     parser.add_argument("--ckpt", default=None)
