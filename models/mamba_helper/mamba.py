@@ -551,7 +551,7 @@ class ShallowFeatureExtractor(nn.Module):
         self.residual = nn.Conv2d(in_channels, embed_dim, kernel_size=1)
         self.se = SEBlock(embed_dim)
 
-        self.dilated_conv = nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1, dilation=2)
+        self.dilated_conv = nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=2, dilation=2)
 
     def forward(self, x):
         residual = self.residual(x)
@@ -559,10 +559,9 @@ class ShallowFeatureExtractor(nn.Module):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu1(x)
-
         x = self.dilated_conv(x)
 
-        x += residual
+    
         x = self.relu1(x)
         
         return x
