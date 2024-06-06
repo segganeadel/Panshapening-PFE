@@ -428,15 +428,16 @@ class deepFuse(nn.Module):
         self.upscale = upscale
         self.mlp_ratio = mlp_ratio
         # ------------------------- 1, shallow feature extraction changed  to a sequential ------------------------- #
-        self.conv_first = nn.Sequential(
-            nn.Conv2d(num_in_ch, embed_dim, kernel_size=3, padding=1),
-            nn.BatchNorm2d(embed_dim),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1),
-            nn.BatchNorm2d(embed_dim),
-            nn.ReLU(inplace=True)
-        )
-
+        #self.conv_first = nn.Sequential(
+          #  nn.Conv2d(num_in_ch, embed_dim, kernel_size=3, padding=1),
+           # nn.BatchNorm2d(embed_dim),
+#nn.ReLU(inplace=True),
+#nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1),
+          #  nn.BatchNorm2d(embed_dim),
+           # nn.ReLU(inplace=True)
+       # )
+# Replace the old conv_first with the new ShallowFeatureExtractor
+        self.conv_first = ShallowFeatureExtractor(in_channels=num_in_ch, embed_dim=embed_dim)
         # ------------------------- 2, deep feature extraction ------------------------- #
         self.num_layers = len(depths)
         self.embed_dim = embed_dim
@@ -526,4 +527,59 @@ class deepFuse(nn.Module):
 
         x = x / self.img_range + self.mean
 
+        return x
+
+class SEBlock(nn.Module):
+    def __init__(self, in_channels, reduction=16):
+        super(SEBlock, self).__init__()
+        self.fc1 = nn.Conv2d(in_channels, in_channels // reduction, kernel_size=1)
+        self.fc2 = nn.Conv2d(in_channels // reduction, in_channels, kernel_size=1)
+
+    def forward(self, x):
+        out = F.adaptive_avg_pool2d(x, 1)
+        out = F.relu(self.fc1(out))
+        out = torch.sigmoid(self.fc2(out))
+        return x * out
+
+class ShallowFeatureExtractor(nn.Module):
+    def __init__(self, in_channels, embed_dim):
+        super(ShallowFeatureExtractor, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, embed_dim, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(embed_dim)
+        self.relu1 = nn.ReLU(inplace=True)
+
+        self.conv2 = nn.Conv2d(embed_dim, embed_dim * 2, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(embed_dim * 2)
+        self.relu2 = nn.ReLU(inplace=True)
+
+        self.conv3 = nn.Conv2d(embed_dim * 2, embed_dim, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(embed_dim)
+        self.relu3 = nn.ReLU(inplace=True)
+
+        self.residual = nn.Conv2d(in_channels, embed_dim, kernel_size=1)
+        self.se = SEBlock(embed_dim)
+
+        self.dilated_conv = nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=2, dilation=2)
+
+    def forward(self, x):
+        residual = self.residual(x)
+
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu1(x)
+
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.relu2(x)
+
+        x = self.conv3(x)
+        x = self.bn3(x)
+        x = self.relu3(x)
+
+        x = self.dilated_conv(x)
+
+        x = self.se(x)
+        x += residual
+        x = self.relu1(x)
+        
         return x
