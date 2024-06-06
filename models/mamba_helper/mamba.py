@@ -317,13 +317,12 @@ class VSSM(nn.Module):
 
         return out
 
-
 class RSSBlock(nn.Module):
     def __init__(
             self,
             hidden_dim: int = 0,
             drop_path: float = 0,
-            norm_layer: nn.Module = nn.LayerNorm,
+            norm_layer: Callable[..., torch.nn.Module] = partial(nn.LayerNorm, eps=1e-6),
             attn_drop_rate: float = 0,
             d_state: int = 16,
             expand: float = 2.,
@@ -344,35 +343,16 @@ class RSSBlock(nn.Module):
         self.ln_2 = nn.LayerNorm(hidden_dim)
         self.skip_scale2 = nn.Parameter(torch.ones(hidden_dim))
 
-        # Skip connections
-        self.skip_conn = nn.Sequential(
-            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1),  # Adjust dimensions if needed
-            nn.BatchNorm2d(hidden_dim),  # Add batch normalization if beneficial
-        )
-
     def forward(self, input, x_size):
         # x [B,HW,C]
         B, L, C = input.shape
         input = input.view(B, *x_size, C).contiguous()  # [B,H,W,C]
-        
         # Layer normalization
         x = self.ln_1(input)
-        
-        # Skip connection
-        skip_out = self.skip_conn(x)
-        
-        # Skip connection * scale + drop path (stochastic depth) of selective scan
+        # skip connection * scale + drop path (stochastic depth) of selective scan
         x = input * self.skip_scale + self.drop_path(self.ss2d(x))
-        
-        # Additional convolutional block
+
         x = x*self.skip_scale2 + self.conv_blk(self.ln_2(x).permute(0, 3, 1, 2).contiguous()).permute(0, 2, 3, 1).contiguous()
-        
-        # Resize skip_out if needed to match x
-        skip_out = F.interpolate(skip_out, size=x.shape[-2:], mode='nearest')
-        
-        # Add skip connection
-        x += skip_out
-        
         x = x.view(B, -1, C).contiguous()
         return x
 
@@ -547,4 +527,3 @@ class deepFuse(nn.Module):
         x = x / self.img_range + self.mean
 
         return x
-
