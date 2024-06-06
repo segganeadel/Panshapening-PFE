@@ -548,14 +548,6 @@ class ShallowFeatureExtractor(nn.Module):
         self.bn1 = nn.BatchNorm2d(embed_dim)
         self.relu1 = nn.ReLU(inplace=True)
 
-        self.conv2 = nn.Conv2d(embed_dim, embed_dim * 2, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(embed_dim * 2)
-        self.relu2 = nn.ReLU(inplace=True)
-
-        self.conv3 = nn.Conv2d(embed_dim * 2, embed_dim, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm2d(embed_dim)
-        self.relu3 = nn.ReLU(inplace=True)
-
         self.residual = nn.Conv2d(in_channels, embed_dim, kernel_size=1)
         self.se = SEBlock(embed_dim)
 
