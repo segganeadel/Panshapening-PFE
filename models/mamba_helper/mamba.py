@@ -422,7 +422,7 @@ class deepFuse(nn.Module):
         super(deepFuse, self).__init__()
         num_in_ch = spectral_num
         num_out_ch = spectral_num
-        num_feat = 64
+        num_feat = 128
         self.img_range = img_range
         self.mean = torch.zeros(1, 1, 1, 1)
         self.upscale = upscale
