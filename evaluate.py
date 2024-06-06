@@ -2,6 +2,8 @@ import os
 from scipy.io import loadmat
 import numpy as np
 import torch
+import cv2
+
 from metrics.ERGAS import ERGAS
 from metrics_torch.ERGAS_TORCH import ergas_torch
 
@@ -11,25 +13,34 @@ from metrics_torch.SAM_TORCH import sam_torch
 from metrics.q2n import q2n
 from metrics_torch.Q2N_TORCH import q2n_torch
 
-from metrics_torch.D_LAMBDA_K_TORCH import d_lambda_k_torch
+from downsample import MTF
+
+
+files_in = sorted(os.listdir("./data/mat/qb/test/"), key=len)
 
 mss = []
-files_ms = sorted(os.listdir("./data/mat/qb/test/"), key=len)
-
-for file in files_ms:
+for file in files_in:
     ms = loadmat(os.path.join("./data/mat/qb/test/", file)).get("ms")
     mss.append(ms)
 
 gts = []
-files_gt = sorted(os.listdir("./data/mat/qb/test/"), key=len)
-
-for file in files_gt:
+for file in files_in:
     gt = loadmat(os.path.join("./data/mat/qb/test/", file)).get("gt")
     gts.append(gt)
 
-outs = []
-files_out = sorted(os.listdir("./out/"), key=len)
+pans = []
+for file in files_in:
+    pan = loadmat(os.path.join("./data/mat/qb/test/", file)).get("pan")
+    pans.append(pan)
 
+lmss = []
+for file in files_in:
+    lms = loadmat(os.path.join("./data/mat/qb/test/", file)).get("lms")
+    lmss.append(lms)
+
+
+files_out = sorted(os.listdir("./out/"), key=len)
+outs = []
 for file in files_out:
     out = loadmat(os.path.join("./out/", file)).get("out")
     outs.append(out)
@@ -39,11 +50,20 @@ q2n_indexes = []
 ergas_indexes = []
 sam_indexes = []
 
+mtf = MTF("qb", 4, 4, 41)
+
+pan_lr = mtf.genMTF_pan(pan[0].astype(np.float32))/2047.0
+cv2.imwrite("pan_lr.png", pan_lr*255)
+ms_lr = mtf.genMTF_ms(gts[0].astype(np.float32).transpose(1,2,0))[:,:,:3]/2047.0
+cv2.imwrite("ms_lr.png", ms_lr*255)
+
+
+
 for images in zip(mss, gts,outs):
     
     ms_image, gt_image, out_image = images
 
-    gt_image /= 2047
+    gt_image /= 2047.0
     out_image /= 2047.0
 
     ms_image_n = np.copy(ms_image).transpose(1,2,0)
@@ -59,8 +79,7 @@ for images in zip(mss, gts,outs):
     gt_image_ten = torch.as_tensor(gt_image_ex).to('cuda')
     out_image_ten =torch.as_tensor(out_image_ex).to('cuda')
 
-    D_lambda_K_index = d_lambda_k_torch(out_image_ten, ms_image_ten)
-    print(D_lambda_K_index.item())
+
 
 
     # Q2N_index, _ = q2n(gt_image_n, out_image_n, Q_blocks_size=32, Q_shift=32)

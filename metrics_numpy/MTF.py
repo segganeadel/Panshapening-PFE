@@ -22,8 +22,10 @@ def genMTF(ratio, sensor, nbands):
         'IKONOS':   [0.26, 0.28, 0.29, 0.28],    # Band Order: B,G,R,NIR
         'GeoEye1':  [0.23, 0.23, 0.23, 0.23],    # Band Order: B,G,R,NIR
         'WV2':      [0.35, 0.35, 0.35, 0.35, 0.35, 0.35, 0.35, 0.27],
-        'WV3':      [0.325, 0.355, 0.360, 0.350, 0.365, 0.360, 0.335, 0.315]
+        'WV3':      [0.325, 0.355, 0.360, 0.350, 0.365, 0.360, 0.335, 0.315],
+        'WV4':      [0.23, 0.23, 0.23, 0.23] # Band Order: B, G, R, NIR
     } 
+
     GNyq = GNyq_dict_ms.get(sensor, 0.3 * np.ones(nbands)) # Default value
     GNyq = np.asarray(GNyq, dtype=np.float32) # Ensure that GNyq is a numpy array
     
