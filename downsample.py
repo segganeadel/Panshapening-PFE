@@ -6,11 +6,26 @@ import math
 from typing import Literal
 
 class MTF():
-    def __init__(self, sensor: str, channels: int, ratio = 4 ,kernel_size=41):
+    def __init__(self, sensor: str, channels: int, device: str, ratio = 4 ,kernel_size=41):
+        """
+        Parameters
+        ----------
+        sensor : str
+            Sensor name (qb, ikonos, geoeye1, wv2, wv3, wv4)
+        channels : int
+            Number of channels in the MS image
+        device : str
+            Device to run the model on (cpu, cuda)
+        ratio : int
+            Downscaling factor PAN/MS(default is 4) 
+        kernel_size : int
+            Size of the kernel (default is 41)
+        """
         self.ratio = ratio
         self.sensor = sensor.lower()
         self.channels = channels
         self.kernel_size = kernel_size
+        self.device = device
 
         GNyq_dict_ms_default = [1 for _ in range(self.channels)]
         GNyq_dict_ms = {
@@ -37,24 +52,76 @@ class MTF():
         self.GNyq_dict_pan = np.asarray([self.GNyq_dict_pan], dtype=np.float32)
 
         self.kernel_ms = NyquistFilterGenerator(self.GNyq_dict_ms, self.ratio, kernel_size)
-        self.kernel_pan = NyquistFilterGenerator(self.GNyq_dict_pan, self.ratio, kernel_size)
+        self.kernel_ms_torch = mtf_kernel_to_torch(self.kernel_ms).to(self.device)
 
-    def genMTF_ms(self, ms):
-        conved_ms = depthConv(self.kernel_ms, ms, self.channels, "ms", self.kernel_size, self.ratio)
+        self.kernel_pan = NyquistFilterGenerator(self.GNyq_dict_pan, self.ratio, kernel_size)
+        self.kernel_pan_torch = mtf_kernel_to_torch(self.kernel_pan).to(self.device)
+
+    def genMTF_ms_np(self, ms: np.ndarray):
+        """
+        Parameters
+        ----------
+        ms : np.ndarray
+            MS image of shape H x W x C
+            H: Height of the image, W: Width of the image, C: Number of channels
+        Returns
+        -------
+        np.ndarray
+            MS image after MTF
+        """
+        ms = img_to_torch(ms, "ms")
+        conved_ms = depthConv(self.kernel_ms_torch, ms, self.channels, self.kernel_size, self.ratio)
+        conved_ms = img_to_numpy(conved_ms, "ms")
         # MS_scale = (math.floor(conved_ms.shape[0] / self.ratio), math.floor(conved_ms.shape[1] / self.ratio), conved_ms.shape[2])
         # I_MS_LR = transform.resize(conved_ms, MS_scale, order=0)
         return conved_ms
         
-    def genMTF_pan(self, pan):
-        conved_pan = depthConv(self.kernel_pan, pan, 1, "pan", self.kernel_size, self.ratio)
+    def genMTF_pan_np(self, pan: np.ndarray):
+        """
+        Parameters
+        ----------
+        pan : np.ndarray
+            PAN image of shape H x W
+            H: Height of the image, W: Width of the image
+        Returns
+        -------
+        np.ndarray
+            PAN image after MTF
+        """
+        pan = img_to_torch(pan, "pan")
+        conved_pan = depthConv(self.kernel_pan_torch, pan, 1, self.kernel_size, self.ratio)
+        conved_pan = img_to_numpy(conved_pan, "pan")
         # PAN_scale = (math.floor(conved_pan.shape[0] / self.ratio), math.floor(conved_pan.shape[1] / self.ratio))
         # I_PAN_LR = transform.resize(conved_pan, PAN_scale, order=0)
         return conved_pan
-        
-def depthConv(mtf_kernel: np.ndarray, img: np.ndarray, channels: int, method: Literal["ms", "pan"], kernel_size= 41, ratio = 4):
-    img = img_to_torch(img, method)
-    mtf_kernel = mtf_kernel_to_torch(mtf_kernel)
+    
+    def genMTF_ms_torch(self, ms_batch:torch.Tensor) -> torch.Tensor:
+        """
+        Parameters
+        ms_batch : torch.Tensor
+            MS image of shape B x C x H x W
+            B: Batch size, C: Number of channels, H: Height of the image, W: Width of the image
+        Returns
+        ----------
+        torch.Tensor
+            MS image after MTF
+        """
+        return depthConv(self.kernel_ms_torch, ms_batch, self.channels, self.kernel_size, self.ratio)
 
+    def genMTF_pan_torch(self, pan_batch:torch.Tensor) -> torch.Tensor: 
+        """
+        Parameters
+        pan_batch : torch.Tensor
+            PAN image of shape B x 1 x H x W
+            B: Batch size, H: Height of the image, W: Width of the image
+        Returns
+        -------
+        torch.Tensor
+            PAN image after MTF
+        """
+        return depthConv(self.kernel_pan_torch, pan_batch, 1, self.kernel_size, self.ratio)
+
+def depthConv(mtf_kernel: torch.Tensor, img: torch.Tensor, channels: int, kernel_size= 41, ratio = 4):
     conv = torch.nn.Conv2d(in_channels=channels,
                             out_channels=channels, 
                             padding=math.ceil(kernel_size / 2),
@@ -66,17 +133,16 @@ def depthConv(mtf_kernel: np.ndarray, img: np.ndarray, channels: int, method: Li
     conv.weight.requires_grad = False
     conved = conv(img)
     conved = torch.nn.functional.interpolate(conved, scale_factor= 1/ratio, mode="bicubic")
-    img = img_to_numpy(conved, method)
-    return img
+    return conved
 
-def img_to_numpy(img, method):
+def img_to_numpy(img: torch.Tensor, method: Literal["ms", "pan"]) -> np.ndarray:
     img = img.numpy()
     img = np.squeeze(img)
     if method == "ms":
         img = np.moveaxis(img, 0, -1)
     return img
 
-def img_to_torch(img, method):
+def img_to_torch(img: np.ndarray, method: Literal["ms", "pan"]) -> torch.Tensor:
     if method == "ms":
         img = np.moveaxis(img, -1, 0)
         img = np.expand_dims(img, axis=0)
@@ -85,7 +151,7 @@ def img_to_torch(img, method):
     img = torch.from_numpy(img)
     return img
 
-def mtf_kernel_to_torch(kernel):
+def mtf_kernel_to_torch(kernel: np.ndarray) -> torch.Tensor:
     kernel = np.moveaxis(kernel, -1, 0)
     kernel = np.expand_dims(kernel, axis=1)
     kernel = kernel.astype(np.float32)

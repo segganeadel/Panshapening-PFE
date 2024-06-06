@@ -50,17 +50,22 @@ q2n_indexes = []
 ergas_indexes = []
 sam_indexes = []
 
-mtf = MTF("qb", 4, 4, 41)
+pans= np.stack(pans)
+gts = np.stack(gts)
 
-pan_lr = mtf.genMTF_pan((pans[0]/2047.0).astype(np.float32))
+mtf = MTF(sensor= "qb", channels= 4,ratio= 4,kernel_size= 41, device="cpu")
+print(pans.shape)
+# pan_lr = mtf.genMTF_pan_np((pans[0]/2047.0).astype(np.float32).squeeze())
+pan_lr = mtf.genMTF_pan_torch(torch.as_tensor(pans, dtype=torch.float32)/2047.0)
 print(pan_lr.shape)
-cv2.imwrite("pan_lr.png", pan_lr*255)
+cv2.imwrite("pan_lr.png", pan_lr.numpy().transpose(0, 2, 3, 1)[0]*255)
 
-ms_lr = mtf.genMTF_ms((gts[0]/2047.0).astype(np.float32).transpose(1,2,0))
-ms_lr_col = ms_lr[:,:,:3]
-print(ms_lr_col.shape)
-cv2.imwrite("ms_lr.png", ms_lr_col*255)
+# ms_lr = mtf.genMTF_ms_np((gts[0]/2047.0).astype(np.float32).transpose(1,2,0))
+ms_lr = mtf.genMTF_ms_torch(torch.as_tensor(gts, dtype=torch.float32)/2047.0)
+print(ms_lr.shape)
+cv2.imwrite("ms_lr.png", ms_lr.numpy().transpose(0, 2, 3, 1)[0,:,:,:3]*255)
 
+ms_lr = ms_lr[0].numpy().transpose(1,2,0)
 lms = interp23tap_GPU(ms_lr, 4)[:,:,:3]
 print(lms.shape)
 cv2.imwrite("lms.png", lms*255)

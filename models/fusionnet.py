@@ -7,9 +7,12 @@ from metrics_torch.SAM_TORCH import sam_torch
 from metrics_torch.Q2N_TORCH import q2n_torch
 
 from downsample import MTF
-from torchmetrics.functional.image.d_s import _spatial_distortion_index_compute
-from torchmetrics.functional.image.d_lambda import _spectral_distortion_index_compute
-from torchmetrics.functional.image.ssim import _ssim_compute
+from torchmetrics.image.d_s import SpatialDistortionIndex
+from torchmetrics.image.d_lambda import SpectralDistortionIndex
+from torchmetrics.image.ergas import ErrorRelativeGlobalDimensionlessSynthesis
+from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure
+from torchmetrics.image.psnr import PeakSignalNoiseRatio
+
 from torchmetrics.functional.image.psnr import _psnr_compute
 from torchmetrics.functional.image.ergas import _ergas_compute
 try:
@@ -37,7 +40,7 @@ class Resblock(nn.Module):
         return rs
 
 class FusionNet(L.LightningModule):
-    def __init__(self, spectral_num, channel=32, satellite="qb", kernel_size=41, ratio=4):
+    def __init__(self, spectral_num, channel=32, satellite="qb", mtf_kernel_size=41, ratio=4):
         super(FusionNet, self).__init__()
         # ConvTranspose2d: output = (input - 1)*stride + outpading - 2*padding + kernelsize
         self.spectral_num = spectral_num
@@ -62,8 +65,17 @@ class FusionNet(L.LightningModule):
         # MTF
         self.mtf = MTF(sensor=satellite, 
                        channels= spectral_num,
+                       device="cuda",
                        ratio=ratio,
-                       kernel_size=kernel_size)
+                       kernel_size=mtf_kernel_size
+                       )
+        ############################################################################################################
+        # Metrics 
+        self.spatial_distortion_index_test = SpatialDistortionIndex()
+        self.spectral_distortion_index_test = SpectralDistortionIndex()
+        self.ergas_test = ErrorRelativeGlobalDimensionlessSynthesis(0.25)
+        self.ssim_test = StructuralSimilarityIndexMeasure()
+        self.psnr_test = PeakSignalNoiseRatio((0,1))
 
 
     def forward(self, input):  # x= lms; y = pan
@@ -113,27 +125,37 @@ class FusionNet(L.LightningModule):
                             prog_bar=True)
         return loss
     
-    def test_step(self, batch, batch_idx):
-        y_hat = self(batch)
-
-        y = batch['gt']
-
+    def test_step(self, batch:dict, batch_idx):
         with torch.no_grad():
-            ergas = _ergas_compute(y_hat, y, 0.25)
-            sam = sam_torch(y_hat, y)
-            q2n = q2n_torch(y_hat, y)
+            y_hat = self(batch)
+            y = batch.get('gt')
             
-            self.log_dict({#'test_loss':  loss, 
-                        'test_sam':   sam, 
-                        'test_ergas': ergas,
-                        'test_q2n': q2n}, 
-                            prog_bar=True)
+            # Reduced resolution mode
+            if y is not None:
+                self.ergas_test.update(y_hat, y)
+                self.ssim_test.update(y_hat, y)
+                self.psnr_test.update(y_hat, y)
+                sam = sam_torch(y_hat, y)
+                q2n = q2n_torch(y_hat, y)       
+                self.log_dict({#'test_loss':  loss, 
+                            'test_ergas': self.ergas_test,
+                            'test_sam':  sam, 
+                            'test_q2n': q2n,
+                            'test_ssim': self.ssim_test,
+                            'test_psnr': self.psnr_test}, 
+                                prog_bar=True)
+            # Full resolution mode
+            else:
+                pans = batch["pan"].repeat(1, self.spectral_num, 1, 1)
+                down_pan = self.mtf.genMTF_pan_torch(batch["pan"])
+                down_pans= down_pan.repeat(1, self.spectral_num, 1, 1)
+
+                self.spatial_distortion_index_test.update(y_hat, {"ms":batch["ms"],"pan": pans,"pan_lr": down_pans})
+                self.spectral_distortion_index_test.update(y_hat, batch['ms'])
+                self.log_dict({"spatial_distortion_index": self.spatial_distortion_index_test,
+                               "spectral_distortion_index": self.spectral_distortion_index_test}, 
+                                prog_bar=True)
 
     def predict_step(self, batch, batch_idx):
-        y_hat = self(batch)
-        down_ms = self.mtf.genMTF_ms(y_hat)
-
-
-
-        return y_hat
+        return self(batch)
     

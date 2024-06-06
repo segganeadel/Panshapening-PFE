@@ -63,7 +63,7 @@ def main(hparams):
         model.load_state_dict(torch.load(weights_path))
     
     datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 3, shuffle_train = False, batch_size = 1)
-    trainer.test(model, datamodule)
+    trainer.test(model, datamodule.test_dataloader())
 
 
 if __name__ == "__main__":
