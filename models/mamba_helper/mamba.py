@@ -317,12 +317,13 @@ class VSSM(nn.Module):
 
         return out
 
+
 class RSSBlock(nn.Module):
     def __init__(
             self,
             hidden_dim: int = 0,
             drop_path: float = 0,
-            norm_layer: Callable[..., torch.nn.Module] = partial(nn.LayerNorm, eps=1e-6),
+            norm_layer: nn.Module = nn.LayerNorm,
             attn_drop_rate: float = 0,
             d_state: int = 16,
             expand: float = 2.,
@@ -343,18 +344,35 @@ class RSSBlock(nn.Module):
         self.ln_2 = nn.LayerNorm(hidden_dim)
         self.skip_scale2 = nn.Parameter(torch.ones(hidden_dim))
 
+        # Skip connections
+        self.skip_conn = nn.Sequential(
+            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1),  # Adjust dimensions if needed
+            nn.BatchNorm2d(hidden_dim),  # Add batch normalization if beneficial
+        )
+
     def forward(self, input, x_size):
         # x [B,HW,C]
         B, L, C = input.shape
         input = input.view(B, *x_size, C).contiguous()  # [B,H,W,C]
+        
         # Layer normalization
         x = self.ln_1(input)
-        # skip connection * scale + drop path (stochastic depth) of selective scan
+        
+        # Skip connection
+        skip_out = self.skip_conn(x)
+        
+        # Skip connection * scale + drop path (stochastic depth) of selective scan
         x = input * self.skip_scale + self.drop_path(self.ss2d(x))
-
+        
+        # Additional convolutional block
         x = x*self.skip_scale2 + self.conv_blk(self.ln_2(x).permute(0, 3, 1, 2).contiguous()).permute(0, 2, 3, 1).contiguous()
+        
+        # Add skip connection
+        x += skip_out
+        
         x = x.view(B, -1, C).contiguous()
         return x
+
 
 class RSSGroup(nn.Module):
     def __init__(self,
@@ -428,16 +446,15 @@ class deepFuse(nn.Module):
         self.upscale = upscale
         self.mlp_ratio = mlp_ratio
         # ------------------------- 1, shallow feature extraction changed  to a sequential ------------------------- #
-        #self.conv_first = nn.Sequential(
-          #  nn.Conv2d(num_in_ch, embed_dim, kernel_size=3, padding=1),
-           # nn.BatchNorm2d(embed_dim),
-#nn.ReLU(inplace=True),
-#nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1),
-          #  nn.BatchNorm2d(embed_dim),
-           # nn.ReLU(inplace=True)
-       # )
-# Replace the old conv_first with the new ShallowFeatureExtractor
-        self.conv_first = ShallowFeatureExtractor(in_channels=num_in_ch, embed_dim=embed_dim)
+        self.conv_first = nn.Sequential(
+            nn.Conv2d(num_in_ch, embed_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(embed_dim),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(embed_dim),
+            nn.ReLU(inplace=True)
+        )
+
         # ------------------------- 2, deep feature extraction ------------------------- #
         self.num_layers = len(depths)
         self.embed_dim = embed_dim
@@ -529,39 +546,3 @@ class deepFuse(nn.Module):
 
         return x
 
-class SEBlock(nn.Module):
-    def __init__(self, in_channels, reduction=16):
-        super(SEBlock, self).__init__()
-        self.fc1 = nn.Conv2d(in_channels, in_channels // reduction, kernel_size=1)
-        self.fc2 = nn.Conv2d(in_channels // reduction, in_channels, kernel_size=1)
-
-    def forward(self, x):
-        out = F.adaptive_avg_pool2d(x, 1)
-        out = F.relu(self.fc1(out))
-        out = torch.sigmoid(self.fc2(out))
-        return x * out
-
-class ShallowFeatureExtractor(nn.Module):
-    def __init__(self, in_channels, embed_dim):
-        super(ShallowFeatureExtractor, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, embed_dim, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(embed_dim)
-        self.relu1 = nn.ReLU(inplace=True)
-
-        self.residual = nn.Conv2d(in_channels, embed_dim, kernel_size=1)
-        self.se = SEBlock(embed_dim)
-
-        self.dilated_conv = nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=2, dilation=2)
-
-    def forward(self, x):
-        residual = self.residual(x)
-
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu1(x)
-        x = self.dilated_conv(x)
-
-    
-        x = self.relu1(x)
-        
-        return x

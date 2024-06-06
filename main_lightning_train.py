@@ -50,7 +50,7 @@ def main(hparams):
     
     num_channels = 4 if satelite == "qb" else 8
     model = model(spectral_num=num_channels) # 4 Channels if qb 8 for else
-    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 2, shuffle_train = False, batch_size = 8)
+    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 2, shuffle_train = False, batch_size = 32)
     trainer.fit(model, datamodule)
 
 if __name__ == "__main__":
