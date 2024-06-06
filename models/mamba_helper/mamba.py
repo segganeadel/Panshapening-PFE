@@ -492,10 +492,9 @@ class deepFuse(nn.Module):
 
         # ------------------------- 3. high-quality image reconstruction ------------------------ #
         self.conv_last = nn.Sequential(
-   nn.Conv2d(embed_dim, num_out_ch, 3, 1, 1,
-    nn.Conv2d(embed_dim, num_out_ch, 3, 1, 1))
+    ResidualBlock(embed_dim, embed_dim),
+    nn.Conv2d(embed_dim, num_out_ch, 3, 1, 1)
 )
-
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -533,3 +532,18 @@ class deepFuse(nn.Module):
         x = x / self.img_range + self.mean
 
         return x
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size, stride, padding)
+        self.relu = nn.ReLU(inplace=True)
+        
+    def forward(self, x):
+        identity = x
+        out = self.conv1(x)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out += identity  # Residual connection
+        out = self.relu(out)
+        return out
