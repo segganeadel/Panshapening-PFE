@@ -5,6 +5,13 @@ import torch.nn.functional as F
 from metrics_torch.ERGAS_TORCH import ergas_torch
 from metrics_torch.SAM_TORCH import sam_torch
 from metrics_torch.Q2N_TORCH import q2n_torch
+
+from downsample import MTF
+from torchmetrics.functional.image.d_s import _spatial_distortion_index_compute
+from torchmetrics.functional.image.d_lambda import _spectral_distortion_index_compute
+from torchmetrics.functional.image.ssim import _ssim_compute
+from torchmetrics.functional.image.psnr import _psnr_compute
+from torchmetrics.functional.image.ergas import _ergas_compute
 try:
     import lightning as L
 except:
@@ -30,10 +37,11 @@ class Resblock(nn.Module):
         return rs
 
 class FusionNet(L.LightningModule):
-    def __init__(self, spectral_num, channel=32):
+    def __init__(self, spectral_num, channel=32, satellite="qb", kernel_size=41, ratio=4):
         super(FusionNet, self).__init__()
         # ConvTranspose2d: output = (input - 1)*stride + outpading - 2*padding + kernelsize
         self.spectral_num = spectral_num
+        self.ratio = ratio
 
         self.conv1 = nn.Conv2d(in_channels=spectral_num, out_channels=channel, kernel_size=3, stride=1, padding=1)
         self.res1 = Resblock()
@@ -50,6 +58,12 @@ class FusionNet(L.LightningModule):
             self.res3,
             self.res4
         )
+        ############################################################################################################
+        # MTF
+        self.mtf = MTF(sensor=satellite, 
+                       channels= spectral_num,
+                       ratio=ratio,
+                       kernel_size=kernel_size)
 
 
     def forward(self, input):  # x= lms; y = pan
@@ -105,8 +119,8 @@ class FusionNet(L.LightningModule):
         y = batch['gt']
 
         with torch.no_grad():
+            ergas = _ergas_compute(y_hat, y, 0.25)
             sam = sam_torch(y_hat, y)
-            ergas = ergas_torch(y_hat, y)
             q2n = q2n_torch(y_hat, y)
             
             self.log_dict({#'test_loss':  loss, 
@@ -116,9 +130,10 @@ class FusionNet(L.LightningModule):
                             prog_bar=True)
 
     def predict_step(self, batch, batch_idx):
+        y_hat = self(batch)
+        down_ms = self.mtf.genMTF_ms(y_hat)
 
-        x = batch
-        preds = self(x)
 
-        return preds
+
+        return y_hat
     

@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import math
-from skimage import transform
+# from skimage import transform
 
 from typing import Literal
 
@@ -40,18 +40,18 @@ class MTF():
         self.kernel_pan = NyquistFilterGenerator(self.GNyq_dict_pan, self.ratio, kernel_size)
 
     def genMTF_ms(self, ms):
-        conved_ms = depthConv(self.kernel_ms, ms, self.channels, "ms", self.kernel_size)
-        MS_scale = (math.floor(conved_ms.shape[0] / self.ratio), math.floor(conved_ms.shape[1] / self.ratio), conved_ms.shape[2])
-        I_MS_LR = transform.resize(conved_ms, MS_scale, order=0)
-        return I_MS_LR
+        conved_ms = depthConv(self.kernel_ms, ms, self.channels, "ms", self.kernel_size, self.ratio)
+        # MS_scale = (math.floor(conved_ms.shape[0] / self.ratio), math.floor(conved_ms.shape[1] / self.ratio), conved_ms.shape[2])
+        # I_MS_LR = transform.resize(conved_ms, MS_scale, order=0)
+        return conved_ms
         
     def genMTF_pan(self, pan):
-        conved_pan = depthConv(self.kernel_pan, pan, 1, "pan", self.kernel_size)
-        PAN_scale = (math.floor(conved_pan.shape[0] / self.ratio), math.floor(conved_pan.shape[1] / self.ratio))
-        I_PAN_LR = transform.resize(conved_pan, PAN_scale, order=0)
-        return I_PAN_LR
+        conved_pan = depthConv(self.kernel_pan, pan, 1, "pan", self.kernel_size, self.ratio)
+        # PAN_scale = (math.floor(conved_pan.shape[0] / self.ratio), math.floor(conved_pan.shape[1] / self.ratio))
+        # I_PAN_LR = transform.resize(conved_pan, PAN_scale, order=0)
+        return conved_pan
         
-def depthConv(mtf_kernel: np.ndarray, img: np.ndarray, channels: int, method: Literal["ms", "pan"], kernel_size= 41):
+def depthConv(mtf_kernel: np.ndarray, img: np.ndarray, channels: int, method: Literal["ms", "pan"], kernel_size= 41, ratio = 4):
     img = img_to_torch(img, method)
     mtf_kernel = mtf_kernel_to_torch(mtf_kernel)
 
@@ -65,7 +65,7 @@ def depthConv(mtf_kernel: np.ndarray, img: np.ndarray, channels: int, method: Li
     conv.weight.data = mtf_kernel
     conv.weight.requires_grad = False
     conved = conv(img)
-    # conved = torch.nn.functional.interpolate(conved, scale_factor=0.25, mode="bicubic")
+    conved = torch.nn.functional.interpolate(conved, scale_factor= 1/ratio, mode="bicubic")
     img = img_to_numpy(conved, method)
     return img
 

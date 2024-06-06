@@ -9,7 +9,7 @@ from models.fusionnet import FusionNet
 from models.msdcnn import MSDCNN
 from models.pannet import PanNet
 from models.pnn import PNN
-from models.mambfuse import MambFuse
+# from models.mambfuse import MambFuse
 
 import torch
 from datamodule_mat import PANDataModule
@@ -35,11 +35,11 @@ def main(hparams):
         "msdcnn":   (MSDCNN,    "msdcnn.pth",   False),
         "pannet":   (PanNet,    "panet.pth",    True),
         "pnn":      (PNN,       "pnn.pth",      False),
-        "mambfuse": (MambFuse,  "",             False)
+        # "mambfuse": (MambFuse,  "",             False)
     }
 
     model_name = hparams.method
-    satelite = hparams.satellite
+    satelite = hparams.satellite # mtf support ["qb", "ikonos", "geoeye1", "wv2", "wv3", "wv4"]
     data_dir = hparams.data_dir
 
     model, weights_path, highpass = models.get(model_name)

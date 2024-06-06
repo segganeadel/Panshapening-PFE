@@ -13,7 +13,7 @@ from metrics_torch.SAM_TORCH import sam_torch
 from metrics.q2n import q2n
 from metrics_torch.Q2N_TORCH import q2n_torch
 
-from downsample import MTF
+from downsample import MTF, interp23tap_GPU
 
 
 files_in = sorted(os.listdir("./data/mat/qb/test/"), key=len)
@@ -52,11 +52,18 @@ sam_indexes = []
 
 mtf = MTF("qb", 4, 4, 41)
 
-pan_lr = mtf.genMTF_pan((pan[0]/2047.0).astype(np.float32))
+pan_lr = mtf.genMTF_pan((pans[0]/2047.0).astype(np.float32))
+print(pan_lr.shape)
 cv2.imwrite("pan_lr.png", pan_lr*255)
-ms_lr = mtf.genMTF_ms((gts[0]/2047.0).astype(np.float32).transpose(1,2,0))[:,:,:3]
-cv2.imwrite("ms_lr.png", ms_lr*255)
 
+ms_lr = mtf.genMTF_ms((gts[0]/2047.0).astype(np.float32).transpose(1,2,0))
+ms_lr_col = ms_lr[:,:,:3]
+print(ms_lr_col.shape)
+cv2.imwrite("ms_lr.png", ms_lr_col*255)
+
+lms = interp23tap_GPU(ms_lr, 4)[:,:,:3]
+print(lms.shape)
+cv2.imwrite("lms.png", lms*255)
 
 
 for images in zip(mss, gts,outs):
