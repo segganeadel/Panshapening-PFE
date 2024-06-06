@@ -431,15 +431,15 @@ class deepFuse(nn.Module):
         self.conv_first= nn.Sequential(
             nn.Conv2d(num_in_ch, embed_dim // 2, kernel_size=3, padding=1),
             nn.BatchNorm2d(embed_dim // 2),
-            nn.ReLU(inplace=True),
+            nn.GELU(inplace=True),
             nn.Conv2d(embed_dim // 2, embed_dim, kernel_size=3, padding=1),
             nn.BatchNorm2d(embed_dim),
-            nn.ReLU(inplace=True),
+            nn.SiLU(inplace=True),
             nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1),
             nn.BatchNorm2d(embed_dim),
-            nn.ReLU(inplace=True),
+           nn.PReLU(num_parameters=1, init=0.25),
         )
-        self.skip_connection = nn.Conv2d(num_in_ch, embed_dim, kernel_size=1)  
+       
         # ------------------------- 2, deep feature extraction ------------------------- #
         self.num_layers = len(depths)
         self.embed_dim = embed_dim
