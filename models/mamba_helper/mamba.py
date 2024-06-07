@@ -422,31 +422,27 @@ class deepFuse(nn.Module):
         super(deepFuse, self).__init__()
         num_in_ch = spectral_num
         num_out_ch = spectral_num
-        num_feat = 128
         self.img_range = img_range
         self.mean = torch.zeros(1, 1, 1, 1)
         self.upscale = upscale
         self.mlp_ratio = mlp_ratio
-        # ------------------------- 1, shallow feature extraction changed  to a sequential ------------------------- #
-        self.conv_first= nn.Sequential(
-            nn.Conv2d(num_in_ch, embed_dim // 2, kernel_size=3, padding=1),
-            nn.BatchNorm2d(embed_dim // 2),
-            nn.ELU(alpha=1.0, inplace=True),
-            nn.Conv2d(embed_dim // 2, embed_dim, kernel_size=3, padding=1),
+
+        # ------------------------- 1. shallow feature extraction ------------------------- #
+        self.conv_first = nn.Sequential(
+            nn.Conv2d(num_in_ch, embed_dim, kernel_size=3, padding=1),
             nn.BatchNorm2d(embed_dim),
-            nn.ELU(alpha=1.0, inplace=True),
+            nn.ReLU(inplace=True),
             nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1),
             nn.BatchNorm2d(embed_dim),
-            nn.PReLU(num_parameters=1, init=0.25),
+            nn.ReLU(inplace=True)
         )
-       
-        # ------------------------- 2, deep feature extraction ------------------------- #
+
+        # ------------------------- 2. deep feature extraction ------------------------- #
         self.num_layers = len(depths)
         self.embed_dim = embed_dim
         self.patch_norm = patch_norm
         self.num_features = embed_dim
 
-        # transfer 2D feature map into 1D token sequence, pay attention to whether using normalization
         self.patch_embed = PatchEmbed(
             img_size=img_size,
             patch_size=patch_size,
@@ -456,7 +452,6 @@ class deepFuse(nn.Module):
         patches_resolution = self.patch_embed.patches_resolution
         self.patches_resolution = patches_resolution
 
-        # return 2D feature map from 1D token sequence
         self.patch_unembed = PatchUnEmbed(
             img_size=img_size,
             patch_size=patch_size,
@@ -466,10 +461,8 @@ class deepFuse(nn.Module):
 
         self.pos_drop = nn.Dropout(p=drop_rate)
 
-        # stochastic depth
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
 
-        # build Residual State Space Group (RSSG)
         self.layers = nn.ModuleList()
         for i_layer in range(self.num_layers):
             layer = RSSGroup(
@@ -478,7 +471,7 @@ class deepFuse(nn.Module):
                 depth=depths[i_layer],
                 d_state=d_state,
                 mlp_ratio=self.mlp_ratio,
-                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],  # no impact on SR results
+                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
                 norm_layer=norm_layer,
                 img_size=img_size,
                 patch_size=patch_size,
@@ -487,15 +480,16 @@ class deepFuse(nn.Module):
             self.layers.append(layer)
         self.norm = norm_layer(self.num_features)
 
-        # build the last conv layer in the end of all residual groups
         self.conv_after_body = nn.Conv2d(embed_dim, embed_dim, 3, 1, 1)
 
-        # ------------------------- 3. high-quality image reconstruction ------------------------ #
+        # ------------------------- 3. high-quality image reconstruction ------------------------- #
         self.conv_last = nn.Sequential(
-    ResidualBlock(embed_dim, embed_dim),
-    nn.Conv2d(embed_dim, num_out_ch, 3, 1, 1),
-    nn.Conv2d(embed_dim, num_out_ch, 3, 1, 1)
-)
+            ResidualBlock(embed_dim, embed_dim),
+            nn.Conv2d(embed_dim, embed_dim, 3, 1, 1),
+            ResidualBlock(embed_dim, embed_dim),
+            nn.Conv2d(embed_dim, num_out_ch, 3, 1, 1)
+        )
+
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -528,7 +522,7 @@ class deepFuse(nn.Module):
 
         x_first = self.conv_first(x)
         res = self.conv_after_body(self.forward_features(x_first)) + x_first
-        x = x + self.conv_last(res)
+        x = res + self.conv_last(res)
 
         x = x / self.img_range + self.mean
 
