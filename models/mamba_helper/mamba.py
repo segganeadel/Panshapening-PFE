@@ -134,6 +134,35 @@ class VSSM(nn.Module):
             **factory_kwargs,
         )
 
+        # Additional convolutional layers
+        self.conv2d_2 = nn.Conv2d(
+            in_channels=self.d_inner,
+            out_channels=self.d_inner,
+            groups=self.d_inner,
+            bias=conv_bias,
+            kernel_size=d_conv,
+            padding=(d_conv - 1) // 2,
+            **factory_kwargs,
+        )
+        self.conv2d_3 = nn.Conv2d(
+            in_channels=self.d_inner,
+            out_channels=self.d_inner,
+            groups=self.d_inner,
+            bias=conv_bias,
+            kernel_size=d_conv,
+            padding=(d_conv - 1) // 2,
+            **factory_kwargs,
+        )
+        self.conv2d_4 = nn.Conv2d(
+            in_channels=self.d_inner,
+            out_channels=self.d_inner,
+            groups=self.d_inner,
+            bias=conv_bias,
+            kernel_size=d_conv,
+            padding=(d_conv - 1) // 2,
+            **factory_kwargs,
+        )
+
 
         self.x_proj = (
             nn.Linear(self.d_inner, (self.dt_rank + self.d_state * 2), bias=False, **factory_kwargs),
@@ -268,6 +297,9 @@ class VSSM(nn.Module):
         # Chunk 1
         x = x.permute(0, 3, 1, 2).contiguous()
         x = F.silu(self.conv2d(x))
+        x = F.silu(self.conv2d_2(x)) 
+        x = F.silu(self.conv2d_4(x))# New conv layer 2
+        x = F.silu(self.conv2d_3(x))  # New conv layer 3
         y1, y2, y3, y4 = self.ss2d(x)
         assert y1.dtype == torch.float32
         y = y1 + y2 + y3 + y4
@@ -279,7 +311,6 @@ class VSSM(nn.Module):
         y = y * F.silu(z)
         # Linear projection
         out = self.out_proj(y)
-
 
         if self.dropout is not None:
             out = self.dropout(out)
@@ -372,6 +403,26 @@ class RSSGroup(nn.Module):
             x = blk(x, x_size)
         return self.patch_embed(self.conv(self.patch_unembed(x, x_size))) + x
 
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+
+    def forward(self, x):
+        residual = x
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out += residual  # Skip connection
+        out = self.relu(out)
+        return out
+
 class deepFuse(nn.Module):
     def __init__(self,
                  img_size=64,
@@ -380,7 +431,7 @@ class deepFuse(nn.Module):
                  embed_dim=96,
                  depths=(2, 2),
                  drop_rate=0.,
-                 d_state = 16,
+                 d_state=16,
                  mlp_ratio=2.,
                  drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm,
@@ -391,21 +442,27 @@ class deepFuse(nn.Module):
         super(deepFuse, self).__init__()
         num_in_ch = spectral_num
         num_out_ch = spectral_num
-        num_feat = 64
         self.img_range = img_range
         self.mean = torch.zeros(1, 1, 1, 1)
         self.upscale = upscale
-        self.mlp_ratio=mlp_ratio
-        # ------------------------- 1, shallow feature extraction ------------------------- #
-        self.conv_first = nn.Conv2d(num_in_ch, embed_dim, 3, 1, 1)
+        self.mlp_ratio = mlp_ratio
 
-        # ------------------------- 2, deep feature extraction ------------------------- #
+        # ------------------------- 1. shallow feature extraction ------------------------- #
+        self.conv_first = nn.Sequential(
+            nn.Conv2d(num_in_ch, embed_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(embed_dim),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(embed_dim),
+            nn.ReLU(inplace=True)
+        )
+
+        # ------------------------- 2. deep feature extraction ------------------------- #
         self.num_layers = len(depths)
         self.embed_dim = embed_dim
         self.patch_norm = patch_norm
         self.num_features = embed_dim
 
-        # transfer 2D feature map into 1D token sequence, pay attention to whether using normalization
         self.patch_embed = PatchEmbed(
             img_size=img_size,
             patch_size=patch_size,
@@ -415,7 +472,6 @@ class deepFuse(nn.Module):
         patches_resolution = self.patch_embed.patches_resolution
         self.patches_resolution = patches_resolution
 
-        # return 2D feature map from 1D token sequence
         self.patch_unembed = PatchUnEmbed(
             img_size=img_size,
             patch_size=patch_size,
@@ -425,19 +481,17 @@ class deepFuse(nn.Module):
 
         self.pos_drop = nn.Dropout(p=drop_rate)
 
-        # stochastic depth
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
 
-        # build Residual State Space Group (RSSG)
         self.layers = nn.ModuleList()
         for i_layer in range(self.num_layers):
             layer = RSSGroup(
                 dim=embed_dim,
                 input_resolution=(patches_resolution[0], patches_resolution[1]),
                 depth=depths[i_layer],
-                d_state = d_state,
+                d_state=d_state,
                 mlp_ratio=self.mlp_ratio,
-                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],  # no impact on SR results
+                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
                 norm_layer=norm_layer,
                 img_size=img_size,
                 patch_size=patch_size,
@@ -446,11 +500,15 @@ class deepFuse(nn.Module):
             self.layers.append(layer)
         self.norm = norm_layer(self.num_features)
 
-        # build the last conv layer in the end of all residual groups
         self.conv_after_body = nn.Conv2d(embed_dim, embed_dim, 3, 1, 1)
 
-        # -------------------------3. high-quality image reconstruction ------------------------ #
-        self.conv_last = nn.Conv2d(embed_dim, num_out_ch, 3, 1, 1)
+        # ------------------------- 3. high-quality image reconstruction ------------------------- #
+        self.conv_last = nn.Sequential(
+            ResidualBlock(embed_dim, embed_dim),
+            nn.Conv2d(embed_dim, embed_dim, 3, 1, 1),
+            ResidualBlock(embed_dim, embed_dim),
+            nn.Conv2d(embed_dim, num_out_ch, 3, 1, 1)
+        )
 
         self.apply(self._init_weights)
 
@@ -466,14 +524,14 @@ class deepFuse(nn.Module):
 
     def forward_features(self, x):
         x_size = (x.shape[2], x.shape[3])
-        x = self.patch_embed(x) # N,L,C
+        x = self.patch_embed(x)  # N, L, C
 
         x = self.pos_drop(x)
 
         for layer in self.layers:
             x = layer(x, x_size)
 
-        x = self.norm(x)  # b seq_len c
+        x = self.norm(x)  # b, seq_len, c
 
         x = self.patch_unembed(x, x_size)
 
@@ -485,7 +543,7 @@ class deepFuse(nn.Module):
 
         x_first = self.conv_first(x)
         res = self.conv_after_body(self.forward_features(x_first)) + x_first
-        x = x + self.conv_last(res)
+        x = self.conv_last(res)
 
         x = x / self.img_range + self.mean
 

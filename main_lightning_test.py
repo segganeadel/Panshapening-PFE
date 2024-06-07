@@ -32,7 +32,7 @@ def main(hparams):
         "msdcnn":   (MSDCNN,    "msdcnn.pth",   False),
         "pannet":   (PanNet,    "panet.pth",    True),
         "pnn":      (PNN,       "pnn.pth",      False),
-        # "mambfuse": (MambFuse,  "",             False)
+        # "mambfuse": (MambFuse,  "mambfuse.ckpt",False)
     }
     
     model_name = hparams.method
@@ -44,26 +44,31 @@ def main(hparams):
 
     wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix = satelite, job_type="test", group = "mine")
     csv_logger = CSVLogger(".")
-    trainer = Trainer(logger=[wandb_logger, csv_logger], devices=1, num_nodes=1)
+    trainer = Trainer(logger=[wandb_logger, csv_logger], 
+                      devices=1, 
+                      num_nodes=1)
 
     num_channels = 4 if satelite == "qb" else 8
 
     if hparams.wandb_model:
         artifact = wandb_logger.use_artifact(hparams.wandb_model, "model")
         model_path = artifact.file()
-        model = model.load_from_checkpoint(model_path, spectral_num=num_channels)
+        model = model.load_from_checkpoint(model_path, spectral_num=num_channels, satellite = satelite)
     elif hparams.ckpt:
         try:
-            model = model.load_from_checkpoint(hparams.ckpt, spectral_num=num_channels)
+            model = model.load_from_checkpoint(hparams.ckpt, spectral_num=num_channels, satellite = satelite)
         except:
-            model = model(num_channels)
+            model = model(num_channels, satellite = satelite)
             model.load_state_dict(torch.load(hparams.ckpt))
     else:
-        model = model(num_channels, satellite = satelite)
-        model.load_state_dict(torch.load(weights_path))
+        try:
+            model = model.load_from_checkpoint(weights_path, spectral_num=num_channels, satellite = satelite)
+        except:
+            model = model(num_channels, satellite = satelite)
+            model.load_state_dict(torch.load(weights_path))
     
     datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 3, shuffle_train = False, batch_size = 1)
-    trainer.test(model, datamodule.test_dataloader())
+    trainer.test(model, datamodule.predict_dataloader())
 
 
 if __name__ == "__main__":

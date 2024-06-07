@@ -35,7 +35,7 @@ def main(hparams):
         "msdcnn":   (MSDCNN,    "msdcnn.pth",   False),
         "pannet":   (PanNet,    "panet.pth",    True),
         "pnn":      (PNN,       "pnn.pth",      False),
-        # "mambfuse": (MambFuse,  "",             False)
+        # "mambfuse": (MambFuse,  "mambfuse.ckpt",False)
     }
 
     model_name = hparams.method
@@ -63,8 +63,11 @@ def main(hparams):
             model = model(num_channels)
             model.load_state_dict(torch.load(hparams.ckpt))
     else:
-        model = model(num_channels)
-        model.load_state_dict(torch.load(weights_path))
+        try:
+            model = model.load_from_checkpoint(weights_path, spectral_num=num_channels, satellite = satelite)
+        except:
+            model = model(num_channels, satellite = satelite)
+            model.load_state_dict(torch.load(weights_path))
     
     datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 3, shuffle_train = False, batch_size = 1)
     # test_dataloader = datamodule.test_dataloader()
