@@ -493,6 +493,7 @@ class deepFuse(nn.Module):
         # ------------------------- 3. high-quality image reconstruction ------------------------ #
         self.conv_last = nn.Sequential(
     ResidualBlock(embed_dim, embed_dim),
+    nn.Conv2d(embed_dim, num_out_ch, 3, 1, 1),
     nn.Conv2d(embed_dim, num_out_ch, 3, 1, 1)
 )
         self.apply(self._init_weights)
