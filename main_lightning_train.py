@@ -53,22 +53,23 @@ def main(hparams):
     
     num_channels = 4 if satelite == "qb" else 8
 
-    if hparams.wandb_model:
-        model_path = "./artifacts/model.ckpt"
-        download_artifact(wandb_logger, hparams.wandb_model, weights_path)
-        model = model.load_from_checkpoint(model_path, spectral_num=num_channels, satellite = satelite)
-    elif hparams.ckpt:
-        try:
-            model = model.load_from_checkpoint(hparams.ckpt, spectral_num=num_channels, satellite = satelite)
-        except:
-            model = model(num_channels, satellite = satelite)
-            model.load_state_dict(torch.load(hparams.ckpt))
-    else:
-        try:
-            model = model.load_from_checkpoint(weights_path, spectral_num=num_channels, satellite = satelite)
-        except:
-            model = model(num_channels, satellite = satelite)
-            model.load_state_dict(torch.load(weights_path))
+    if hparams.resume:
+        if hparams.wandb_model:
+            model_path = "./artifacts/model.ckpt"
+            download_artifact(wandb_logger, hparams.wandb_model, weights_path)
+            model = model.load_from_checkpoint(model_path, spectral_num=num_channels, satellite = satelite)
+        elif hparams.ckpt:
+            try:
+                model = model.load_from_checkpoint(hparams.ckpt, spectral_num=num_channels, satellite = satelite)
+            except:
+                model = model(num_channels, satellite = satelite)
+                model.load_state_dict(torch.load(hparams.ckpt))
+        else:
+            try:
+                model = model.load_from_checkpoint(weights_path, spectral_num=num_channels, satellite = satelite)
+            except:
+                model = model(num_channels, satellite = satelite)
+                model.load_state_dict(torch.load(weights_path))
 
 
     model = model(spectral_num=num_channels) # 4 Channels if qb 8 for else
@@ -86,6 +87,7 @@ if __name__ == "__main__":
     parser.add_argument("--satellite", default="qb")
     parser.add_argument("--data_dir", default="./data/mat/qb")
     parser.add_argument("--method", default="mambfuse", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
+    parser.add_argument("-resume", action="store_true",)
     parser.add_argument("--wandb_model", default=None)
     parser.add_argument("--ckpt", default=None)
     parser.add_argument("--epochs", default= 100)
