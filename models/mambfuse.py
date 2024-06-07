@@ -41,6 +41,9 @@ class MambFuse(L.LightningModule):
     def __init__(self, spectral_num, channel=32, satellite="qb", mtf_kernel_size=41, ratio=4):
         super(MambFuse, self).__init__()
         self.spectral_num = spectral_num
+        self.satellite = satellite
+        self.ratio = ratio
+        self.mtf_kernel_size = mtf_kernel_size
 
         self.backbone_recept = nn.Sequential(  # method 2: 4 resnet repeated blocks
             nn.Conv2d(in_channels=spectral_num, out_channels=channel, kernel_size=3, stride=1, padding=1),
