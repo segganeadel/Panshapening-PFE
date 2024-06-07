@@ -403,6 +403,26 @@ class RSSGroup(nn.Module):
             x = blk(x, x_size)
         return self.patch_embed(self.conv(self.patch_unembed(x, x_size))) + x
 
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+
+    def forward(self, x):
+        residual = x
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out += residual  # Skip connection
+        out = self.relu(out)
+        return out
+
 class deepFuse(nn.Module):
     def __init__(self,
                  img_size=64,
@@ -521,24 +541,12 @@ class deepFuse(nn.Module):
         x = (x - self.mean) * self.img_range
 
         x_first = self.conv_first(x)
+        print("x_first shape:", x_first.shape)  # Debugging statement
         res = self.conv_after_body(self.forward_features(x_first)) + x_first
-        x = res + self.conv_last(res)
+        print("res shape:", res.shape)  # Debugging statement
+        x = self.conv_last(res)
+        print("x shape after conv_last:", x.shape)  # Debugging statement
 
         x = x / self.img_range + self.mean
 
         return x
-class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1):
-        super(ResidualBlock, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size, stride, padding)
-        self.relu = nn.ReLU(inplace=True)
-        
-    def forward(self, x):
-        identity = x
-        out = self.conv1(x)
-        out = self.relu(out)
-        out = self.conv2(out)
-        out += identity  # Residual connection
-        out = self.relu(out)
-        return out
