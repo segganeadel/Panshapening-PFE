@@ -521,6 +521,7 @@ class deepFuse(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
+
     def forward_features(self, x):
         x_size = (x.shape[2], x.shape[3])
         x = self.patch_embed(x)  # N, L, C
@@ -541,11 +542,8 @@ class deepFuse(nn.Module):
         x = (x - self.mean) * self.img_range
 
         x_first = self.conv_first(x)
-        print("x_first shape:", x_first.shape)  # Debugging statement
         res = self.conv_after_body(self.forward_features(x_first)) + x_first
-        print("res shape:", res.shape)  # Debugging statement
         x = self.conv_last(res)
-        print("x shape after conv_last:", x.shape)  # Debugging statement
 
         x = x / self.img_range + self.mean
 
