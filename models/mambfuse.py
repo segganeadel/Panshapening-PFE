@@ -59,24 +59,8 @@ class MambFuse(L.LightningModule):
         ############################################################################################################
         # Loss
         self.loss = nn.L1Loss()
-        ############################################################################################################
-        # Metrics 
-        self.spatial_distortion_index_test = SpatialDistortionIndex()
-        self.spectral_distortion_index_test = SpectralDistortionIndex()
-        self.ergas_test = ErrorRelativeGlobalDimensionlessSynthesis(0.25)
-        self.ssim_test = StructuralSimilarityIndexMeasure()
-        self.psnr_test = PeakSignalNoiseRatio((0,1))
-        self.qnr_test = QualityWithNoReference()
 
-    def setup(self, stage):
-        ############################################################################################################
-        # MTF
-        self.mtf = MTF(sensor=self.satellite, 
-                channels= self.spectral_num,
-                device=self.device,
-                ratio=self.ratio,
-                kernel_size=self.mtf_kernel_size
-                )
+
 
     def forward(self, input):
         lms = input['lms']
@@ -91,11 +75,29 @@ class MambFuse(L.LightningModule):
         output = torch.add(out, lms) 
         return output
 
-            
-
+    
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=2e-4)
     
+    def setup(self, stage):
+        if stage == 'test':
+            ############################################################################################################
+            # MTF
+            self.mtf = MTF(sensor=self.satellite, 
+                    channels= self.spectral_num,
+                    device=self.device,
+                    ratio=self.ratio,
+                    kernel_size=self.mtf_kernel_size
+                    )
+            ############################################################################################################
+            # Metrics 
+            self.spatial_distortion_index_test = SpatialDistortionIndex()
+            self.spectral_distortion_index_test = SpectralDistortionIndex()
+            self.ergas_test = ErrorRelativeGlobalDimensionlessSynthesis(0.25)
+            self.ssim_test = StructuralSimilarityIndexMeasure()
+            self.psnr_test = PeakSignalNoiseRatio((0,1))
+            self.qnr_test = QualityWithNoReference()
+
     def training_step(self, batch, batch_idx):
         y_hat = self(batch)
 
