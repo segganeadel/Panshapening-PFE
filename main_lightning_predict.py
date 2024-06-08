@@ -69,7 +69,7 @@ def main(hparams):
             model = model(num_channels, satellite = satelite)
             model.load_state_dict(torch.load(weights_path))
     
-    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 3, shuffle_train = False, batch_size = 1)
+    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 2, shuffle_train = False, batch_size = 1)
 
     if hparams.data == "rr":
         dataloader = datamodule.test_dataloader()
