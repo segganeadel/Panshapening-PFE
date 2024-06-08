@@ -70,7 +70,7 @@ def main(hparams):
             model.load_state_dict(torch.load(weights_path))
     
     datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 3, shuffle_train = False, batch_size = 1)
-    results = trainer.predict(model, datamodule.test_dataloader())
+    results = trainer.predict(model, datamodule)
 
     os.makedirs(f"{hparams.outdir}/{model_name}", exist_ok=True)
     
