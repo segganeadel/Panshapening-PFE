@@ -26,7 +26,7 @@ class PNN(L.LightningModule):
         self.satellite = satellite
         self.ratio = ratio
         self.mtf_kernel_size = mtf_kernel_size
-        
+
         self.spectral_num = spectral_num
         # ConvTranspose2d: output = (input - 1)*stride + outpading - 2*padding + kernelsize
         self.conv1 = nn.Conv2d(in_channels=spectral_num + 1,    out_channels=channel,       kernel_size=9, stride=1)
@@ -34,6 +34,8 @@ class PNN(L.LightningModule):
         self.conv3 = nn.Conv2d(in_channels=32,                  out_channels=spectral_num,  kernel_size=5, stride=1)
         self.relu =  nn.ReLU(inplace=True)
         # init_weights(self.conv1, self.conv2, self.conv3)
+
+        self.loss = nn.MSELoss()
 
 
     def forward(self, input: dict) -> torch.Tensor:  
