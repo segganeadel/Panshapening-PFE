@@ -55,9 +55,9 @@ def main(hparams):
 
     if hparams.resume:
         if hparams.wandb_model:
-            model_path = "./artifacts/model.ckpt"
+            weights_path = "./artifacts/model.ckpt"
             download_artifact(wandb_logger, hparams.wandb_model, weights_path)
-            model = model.load_from_checkpoint(model_path, spectral_num=num_channels, satellite = satelite)
+            model = model.load_from_checkpoint(weights_path, spectral_num=num_channels, satellite = satelite)
         elif hparams.ckpt:
             try:
                 model = model.load_from_checkpoint(hparams.ckpt, spectral_num=num_channels, satellite = satelite)
