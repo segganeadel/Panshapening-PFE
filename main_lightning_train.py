@@ -70,6 +70,8 @@ def main(hparams):
             except:
                 model = model(num_channels, satellite = satelite)
                 model.load_state_dict(torch.load(weights_path))
+    else:
+        model = model(num_channels, satellite = satelite)
                 
     datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 2, shuffle_train = False, batch_size = 32)
     trainer.fit(model, datamodule)
