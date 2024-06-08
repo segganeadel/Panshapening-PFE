@@ -21,9 +21,6 @@ except:
     import pytorch_lightning as L
 
 
-
-
-
 class Resblock(nn.Module):
     def __init__(self):
         super(Resblock, self).__init__()
@@ -63,22 +60,9 @@ class FusionNet(L.LightningModule):
             self.res3,
             self.res4
         )
-        ############################################################################################################
-        # Metrics 
-        self.spatial_distortion_index_test = SpatialDistortionIndex()
-        self.spectral_distortion_index_test = SpectralDistortionIndex()
-        self.ergas_test = ErrorRelativeGlobalDimensionlessSynthesis(0.25)
-        self.ssim_test = StructuralSimilarityIndexMeasure()
-        self.psnr_test = PeakSignalNoiseRatio((0,1))
-        self.qnr_test = QualityWithNoReference()
 
-    def setup(self, stage):
-        self.mtf = MTF(sensor=self.satellite, 
-                channels= self.spectral_num,
-                device=self.device,
-                ratio=self.ratio,
-                kernel_size=self.mtf_kernel_size
-                )
+        self.loss = nn.MSELoss()
+
 
     def forward(self, input):  # x= lms; y = pan
         lms = input["lms"]
@@ -99,32 +83,54 @@ class FusionNet(L.LightningModule):
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=3e-4)
     
+    def setup(self, stage):
+        if stage == 'test':
+            ############################################################################################################
+            # MTF
+            self.mtf = MTF(sensor=self.satellite, 
+                    channels= self.spectral_num,
+                    device=self.device,
+                    ratio=self.ratio,
+                    kernel_size=self.mtf_kernel_size
+                    )
+            ############################################################################################################
+            # Metrics 
+            self.spatial_distortion_index_test = SpatialDistortionIndex()
+            self.spectral_distortion_index_test = SpectralDistortionIndex()
+            self.ergas_test = ErrorRelativeGlobalDimensionlessSynthesis()
+            self.ssim_test = StructuralSimilarityIndexMeasure()
+            self.psnr_test = PeakSignalNoiseRatio((0,1))
+            self.qnr_test = QualityWithNoReference()
+
     def training_step(self, batch, batch_idx):
         y_hat = self(batch)
 
         y = batch['gt']
-        loss = torch.nn.functional.mse_loss(y_hat, y)
+        loss = self.loss(y_hat, y)
         with torch.no_grad():
             ergas = ergas_torch(y_hat, y) 
             sam = sam_torch(y_hat, y)
             self.log_dict({'training_loss': loss, 
                         'training_sam':   sam, 
                         'training_ergas': ergas}, 
-                            prog_bar=True)
+                            prog_bar=True,
+                            sync_dist=True)
         return loss
     
     def validation_step(self, batch, batch_idx):
         y_hat = self(batch)
 
         y = batch['gt']
-        loss = torch.nn.functional.mse_loss(y_hat, y)
+        loss = self.loss(y_hat, y)
+        
         with torch.no_grad():
             ergas = ergas_torch(y_hat, y)  
             sam = sam_torch(y_hat, y)
             self.log_dict({'validation_loss':  loss, 
                         'validation_sam':   sam, 
                         'validation_ergas': ergas}, 
-                            prog_bar=True)
+                            prog_bar=True,
+                            sync_dist=True)
         return loss
     
     def test_step(self, batch:dict, batch_idx):
@@ -160,6 +166,9 @@ class FusionNet(L.LightningModule):
                                "test_qnr": self.qnr_test}, 
                                 prog_bar=True)
 
+
     def predict_step(self, batch, batch_idx):
-        return self(batch)
+        x = batch
+        preds = self(x)
+        return preds
     

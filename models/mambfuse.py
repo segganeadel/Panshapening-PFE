@@ -93,7 +93,7 @@ class MambFuse(L.LightningModule):
             # Metrics 
             self.spatial_distortion_index_test = SpatialDistortionIndex()
             self.spectral_distortion_index_test = SpectralDistortionIndex()
-            self.ergas_test = ErrorRelativeGlobalDimensionlessSynthesis(0.25)
+            self.ergas_test = ErrorRelativeGlobalDimensionlessSynthesis()
             self.ssim_test = StructuralSimilarityIndexMeasure()
             self.psnr_test = PeakSignalNoiseRatio((0,1))
             self.qnr_test = QualityWithNoReference()

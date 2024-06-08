@@ -68,14 +68,14 @@ def main(hparams):
             model.load_state_dict(torch.load(weights_path))
     
     datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 3, shuffle_train = False, batch_size = 1)
-    trainer.test(model, datamodule.predict_dataloader())
+    trainer.test(model, datamodule)
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--satellite", default="qb")
     parser.add_argument("--data_dir", default="./data/mat/qb")
-    parser.add_argument("--method", default="fusionnet", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
+    parser.add_argument("--method", default="mambfuse", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
     parser.add_argument("--wandb_model", default=None)
     parser.add_argument("--ckpt", default=None)
     args = parser.parse_args()
