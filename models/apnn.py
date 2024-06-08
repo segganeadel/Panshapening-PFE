@@ -29,7 +29,10 @@ class APNN(L.LightningModule):
         self.ratio = ratio
         self.mtf_kernel_size = mtf_kernel_size
 
-        channel = 64
+        if satellite == "qb":
+            channel = 64
+        elif satellite == "wv3":
+            channel = 48
 
 
         # ConvTranspose2d: output = (input - 1)*stride + outpading - 2*padding + kernelsize

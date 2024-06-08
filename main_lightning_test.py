@@ -30,7 +30,7 @@ def main(hparams):
         "drpnn":    (DRPNN,     "drpnn.pth",    False),
         "fusionnet":(FusionNet, "fusionnet.pth",False),
         "msdcnn":   (MSDCNN,    "msdcnn.pth",   False),
-        "pannet":   (PanNet,    "panet.pth",    True),
+        "pannet":   (PanNet,    "pannet.pth",    True),
         "pnn":      (PNN,       "pnn.pth",      False),
         "mambfuse": (MambFuse,  "mambfuse.ckpt",False)
     }
@@ -40,7 +40,7 @@ def main(hparams):
     data_dir = hparams.data_dir
 
     model, weights_path, highpass = models.get(model_name)
-    weights_path = os.path.join(".", "weights", "QB", weights_path)
+    weights_path = os.path.join(".", "weights", satelite, weights_path)
 
     wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix = satelite, job_type="test", group = "mine")
     csv_logger = CSVLogger(".")
@@ -48,7 +48,16 @@ def main(hparams):
                       devices=1, 
                       num_nodes=1)
 
-    num_channels = 4 if satelite == "qb" else 8
+    channels_dict = {
+        "qb": 4,
+        # "ikonos": 4,
+        # "geoeye1": 4,
+        "wv2": 8,
+        "wv3": 8,
+        "wv4": 4
+    }
+    num_channels = channels_dict.get(satelite, 4)
+    
 
     if hparams.wandb_model:
         artifact = wandb_logger.use_artifact(hparams.wandb_model, "model")
@@ -68,7 +77,7 @@ def main(hparams):
             model.load_state_dict(torch.load(weights_path))
     
     datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 3, shuffle_train = False, batch_size = 1)
-    
+
     if hparams.data == "rr":
         dataloader = datamodule.test_dataloader()
     elif hparams.data == "fr":
@@ -79,8 +88,8 @@ def main(hparams):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--satellite", default="qb")
-    parser.add_argument("--data_dir", default="./data/mat/qb")
+    parser.add_argument("--satellite", default="wv3")
+    parser.add_argument("--data_dir", default="./data/mat/wv3")
     parser.add_argument("--method", default="pnn", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
     parser.add_argument("--wandb_model", default=None)
     parser.add_argument("--ckpt", default=None)

@@ -5,6 +5,8 @@
 #logs 
 lightning_logs/
 wandb/
+# temporary wv3
+*.pth
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

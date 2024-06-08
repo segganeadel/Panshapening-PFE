@@ -34,7 +34,7 @@ def main(hparams):
         "drpnn":    (DRPNN,     "drpnn.pth",    False),
         "fusionnet":(FusionNet, "fusionnet.pth",False),
         "msdcnn":   (MSDCNN,    "msdcnn.pth",   False),
-        "pannet":   (PanNet,    "panet.pth",    True),
+        "pannet":   (PanNet,    "pannet.pth",    True),
         "pnn":      (PNN,       "pnn.pth",      False),
         "mambfuse": (MambFuse,  "mambfuse.ckpt",False)
     }
@@ -45,14 +45,22 @@ def main(hparams):
 
     # Choose the model
     model, weights_path, highpass = models.get(model_name)
-    weights_path = os.path.join(".", "weights", "QB", weights_path)
+    weights_path = os.path.join(".", "weights", satelite, weights_path)
 
     wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix = satelite, job_type="train", group = "mymodel", log_model="all")
     csv_logger = CSVLogger(".")
     trainer = Trainer(logger=[wandb_logger, csv_logger], 
                       max_epochs=int(hparams.epochs))
     
-    num_channels = 4 if satelite == "qb" else 8
+    channels_dict = {
+        "qb": 4,
+        # "ikonos": 4,
+        # "geoeye1": 4,
+        "wv2": 8,
+        "wv3": 8,
+        "wv4": 4
+    }
+    num_channels = channels_dict.get(satelite, 4)
 
     if hparams.resume:
         if hparams.wandb_model:

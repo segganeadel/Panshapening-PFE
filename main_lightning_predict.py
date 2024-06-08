@@ -9,7 +9,7 @@ from models.fusionnet import FusionNet
 from models.msdcnn import MSDCNN
 from models.pannet import PanNet
 from models.pnn import PNN
-# from models.mambfuse import MambFuse
+from models.mambfuse import MambFuse
 
 import torch
 from datamodule_mat import PANDataModule
@@ -21,6 +21,7 @@ except:
     from pytorch_lightning.loggers import WandbLogger, CSVLogger
 
 import cv2 as cv
+import numpy as np
 
 
 def main(hparams):
@@ -33,9 +34,9 @@ def main(hparams):
         "drpnn":    (DRPNN,     "drpnn.pth",    False),
         "fusionnet":(FusionNet, "fusionnet.pth",False),
         "msdcnn":   (MSDCNN,    "msdcnn.pth",   False),
-        "pannet":   (PanNet,    "panet.pth",    True),
+        "pannet":   (PanNet,    "pannet.pth",    True),
         "pnn":      (PNN,       "pnn.pth",      False),
-        # "mambfuse": (MambFuse,  "mambfuse.ckpt",False)
+        "mambfuse": (MambFuse,  "mambfuse.ckpt",False)
     }
 
     model_name = hparams.method
@@ -43,14 +44,22 @@ def main(hparams):
     data_dir = hparams.data_dir
 
     model, weights_path, highpass = models.get(model_name)
-    weights_path = os.path.join(".", "weights", "QB", weights_path)
+    weights_path = os.path.join(".", "weights", satelite, weights_path)
 
 
     wandb_logger = WandbLogger(name=model_name, project="PanSharpening", prefix=satelite)
     csv_logger = CSVLogger(".")
     trainer = Trainer(logger=[wandb_logger, csv_logger], devices=1, num_nodes=1)
     
-    num_channels = 4 if satelite == "qb" else 8
+    channels_dict = {
+        "qb": (4, np.index_exp[:,0:3]),
+        # "ikonos": 4,
+        # "geoeye1": 4,
+        "wv2": (8,np.index_exp[:,(1,2,4)]),
+        "wv3": (8, np.index_exp[:,(1,2,4)]),
+        "wv4": 4
+    }
+    num_channels, slice = channels_dict.get(satelite)
 
     if hparams.wandb_model:
         artifact = wandb_logger.use_artifact(hparams.wandb_model, "model")
@@ -81,7 +90,7 @@ def main(hparams):
     os.makedirs(f"{hparams.outdir}/{model_name}", exist_ok=True)
     
     for index ,result in enumerate(results):
-        result = result[:,:3].numpy().transpose(0,2,3,1)*255
+        result = result[slice].numpy().transpose(0,2,3,1)*255
         generate_image_out(result, index, model_name)
 
 def generate_image_out (image_out, batch_n, model_name):
@@ -93,10 +102,10 @@ def generate_image_out (image_out, batch_n, model_name):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--satellite", default="qb")
-    parser.add_argument("--data_dir", default="./data/mat/qb")
+    parser.add_argument("--satellite", default="wv3")
+    parser.add_argument("--data_dir", default="./data/mat/wv3")
     parser.add_argument("--outdir", default="./out")
-    parser.add_argument("--method", default="fusionnet", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
+    parser.add_argument("--method", default="pnn", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
     parser.add_argument("--wandb_model", default=None)
     parser.add_argument("--ckpt", default=None)
     parser.add_argument("--data", default="fr", choices=["rr", "fr"])
