@@ -9,7 +9,7 @@ from models.fusionnet import FusionNet
 from models.msdcnn import MSDCNN
 from models.pannet import PanNet
 from models.pnn import PNN
-from models.mambfuse import MambFuse
+# from models.mambfuse import MambFuse
 
 import torch
 from datamodule_mat import PANDataModule
@@ -32,7 +32,7 @@ def main(hparams):
         "msdcnn":   (MSDCNN,    "msdcnn.pth",   False),
         "pannet":   (PanNet,    "pannet.pth",    True),
         "pnn":      (PNN,       "pnn.pth",      False),
-        "mambfuse": (MambFuse,  "mambfuse.ckpt",False)
+        # "mambfuse": (MambFuse,  "mambfuse.ckpt",False)
     }
     
     model_name = hparams.method
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     parser.add_argument("--method", default="pnn", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
     parser.add_argument("--wandb_model", default=None)
     parser.add_argument("--ckpt", default=None)
-    parser.add_argument("--data", default="rr", choices=["rr", "fr"])
+    parser.add_argument("--data", default="fr", choices=["rr", "fr"])
     args = parser.parse_args()
 
     main(args)
