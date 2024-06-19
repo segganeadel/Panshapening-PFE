@@ -106,11 +106,11 @@ def generate_image_out (image_out, batch_n, model_name):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--satellite", default="qb")
+    parser.add_argument("--satellite", default="wv3")
     parser.add_argument("--img_scale", default=2047.0)
-    parser.add_argument("--data_dir", default="./data/mat/qb")
+    parser.add_argument("--data_dir", default="./data/mat/wv3")
     parser.add_argument("--outdir", default="./out")
-    parser.add_argument("--method", default="pnn", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
+    parser.add_argument("--method", default="fusionnet", choices=["apnn", "bdpn", "dicnn", "drpnn", "fusionnet", "msdcnn", "pannet", "pnn", "mambfuse"])
     parser.add_argument("--wandb_model", default=None)
     parser.add_argument("--ckpt", default=None)
     parser.add_argument("--data", default="fr", choices=["rr", "fr"])

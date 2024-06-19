@@ -45,7 +45,7 @@ class MambFuse(L.LightningModule):
         self.ratio = ratio
         self.mtf_kernel_size = mtf_kernel_size
 
-        self.backbone_recept = nn.Sequential(  # method 2: 4 resnet repeated blocks
+        self.fusionnet = nn.Sequential(  # method 2: 4 resnet repeated blocks
             nn.Conv2d(in_channels=spectral_num, out_channels=channel, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
             Resblock(),
@@ -69,7 +69,7 @@ class MambFuse(L.LightningModule):
         pan_concat = pan.repeat(1, self.spectral_num, 1, 1)  # Bsx8x64x64
         out = torch.sub(pan_concat, lms)
 
-        out = self.backbone_recept(out)
+        out = self.fusionnet(out)
         out = self.deepfusion(out)
 
         output = torch.add(out, lms) 
