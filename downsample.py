@@ -148,7 +148,7 @@ def img_to_torch(img: np.ndarray, method: Literal["ms", "pan"]) -> torch.Tensor:
         img = np.expand_dims(img, axis=0)
     else:       
         img = np.expand_dims(img, [0, 1])
-    img = torch.from_numpy(img)
+    img = torch.from_numpy(img.astype(np.float32))
     return img
 
 def mtf_kernel_to_torch(kernel: np.ndarray) -> torch.Tensor:

@@ -11,7 +11,6 @@ class Dataset_mat_rr(Dataset):
         
         self.highpass = highpass
         self.img_scale = img_scale
-        self.img_scale = img_scale
         
         self.dir_path = dir_path
         self.files = sorted(os.listdir(dir_path), key=len)
@@ -52,7 +51,6 @@ class Dataset_mat_fr(Dataset):
         super(Dataset_mat_fr, self).__init__()
         
         self.highpass = highpass
-        self.img_scale = img_scale
         self.img_scale = img_scale
         
         self.dir_path = dir_path

@@ -89,7 +89,7 @@ def main(hparams):
         dataloader = datamodule.predict_dataloader()
 
     results = trainer.predict(model, dataloader)
-
+    # B , C , H , W 
     os.makedirs(f"{hparams.outdir}/{model_name}", exist_ok=True)
     
     for index ,result in enumerate(results):
