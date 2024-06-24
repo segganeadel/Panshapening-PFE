@@ -539,6 +539,4 @@ class deepFuse(nn.Module):
         res = self.conv_after_body(self.forward_features(x_first)) + x_first
         x = self.conv_last(res)
 
-        x = x / self.img_range + self.mean
-
         return x
