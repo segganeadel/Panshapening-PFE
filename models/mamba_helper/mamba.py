@@ -10,11 +10,9 @@ from einops import rearrange, repeat
 
 class PatchEmbed(nn.Module):
     def __init__(self, 
-                 in_chans=3, 
                  embed_dim=96, 
                  norm_layer=None):
         super().__init__()
-        self.in_chans = in_chans
         self.embed_dim = embed_dim
 
         if norm_layer is not None:
@@ -30,11 +28,9 @@ class PatchEmbed(nn.Module):
 
 class PatchUnEmbed(nn.Module):
     def __init__(self,
-                in_chans=3, 
                 embed_dim=96, 
                 norm_layer=None):
         super().__init__()
-        self.in_chans = in_chans
         self.embed_dim = embed_dim
 
     def forward(self, x, x_size):
@@ -352,8 +348,8 @@ class RSSGroup(nn.Module):
                 **kwargs))
 
         self.conv = nn.Conv2d(dim, dim, 3, 1, 1)
-        self.patch_embed = PatchEmbed(in_chans=0, embed_dim=dim, norm_layer=None)
-        self.patch_unembed = PatchUnEmbed(in_chans=0, embed_dim=dim, norm_layer=None)
+        self.patch_embed = PatchEmbed(embed_dim=dim, norm_layer=None)
+        self.patch_unembed = PatchUnEmbed(embed_dim=dim, norm_layer=None)
 
     def forward(self, x, x_size):
 
@@ -410,8 +406,8 @@ class deepFuse(nn.Module):
 # ------------------------- 2. deep feature extraction ------------------------- #
         self.num_layers = len(depths)
 
-        self.patch_embed = PatchEmbed(in_chans=embed_dim, embed_dim=embed_dim, norm_layer=norm_layer if patch_norm else None)
-        self.patch_unembed = PatchUnEmbed(in_chans=embed_dim, embed_dim=embed_dim, norm_layer=norm_layer if patch_norm else None)
+        self.patch_embed = PatchEmbed(embed_dim=embed_dim, norm_layer=norm_layer if patch_norm else None)
+        self.patch_unembed = PatchUnEmbed(embed_dim=embed_dim, norm_layer=norm_layer if patch_norm else None)
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
 
