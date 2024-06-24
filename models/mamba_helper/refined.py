@@ -8,6 +8,132 @@ from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
 from einops import rearrange, repeat
 
+class deepFuse(nn.Module):
+    def __init__(self,
+                 img_size=64,
+                 patch_size=1,
+                 spectral_num=4,
+                 embed_dim=96,
+                 depths=(2, 2),
+                 drop_rate=0.,
+                 d_state=16,
+                 mlp_ratio=2.,
+                 drop_path_rate=0.1,
+                 norm_layer=nn.LayerNorm,
+                 patch_norm=True,
+                 upscale=2,
+                 img_range=1.,
+                 **kwargs):
+        super(deepFuse, self).__init__()
+        num_in_ch = spectral_num
+        num_out_ch = spectral_num
+        self.img_range = img_range
+        self.mean = torch.zeros(1, 1, 1, 1)
+        self.upscale = upscale
+        self.mlp_ratio = mlp_ratio
+
+        # ------------------------- 1. shallow feature extraction ------------------------- #
+        self.conv_first = nn.Sequential(
+            nn.Conv2d(num_in_ch, embed_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(embed_dim),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(embed_dim),
+            nn.ReLU(inplace=True)
+        )
+
+        # ------------------------- 2. deep feature extraction ------------------------- #
+        self.num_layers = len(depths)
+        self.embed_dim = embed_dim
+        self.patch_norm = patch_norm
+        self.num_features = embed_dim
+
+        self.patch_embed = PatchEmbed(
+            img_size=img_size,
+            patch_size=patch_size,
+            in_chans=embed_dim,
+            embed_dim=embed_dim,
+            norm_layer=norm_layer if self.patch_norm else None)
+        patches_resolution = self.patch_embed.patches_resolution
+        self.patches_resolution = patches_resolution
+
+        self.patch_unembed = PatchUnEmbed(
+            img_size=img_size,
+            patch_size=patch_size,
+            in_chans=embed_dim,
+            embed_dim=embed_dim,
+            norm_layer=norm_layer if self.patch_norm else None)
+
+        self.pos_drop = nn.Dropout(p=drop_rate)
+
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
+
+        self.layers = nn.ModuleList()
+        for i_layer in range(self.num_layers):
+            layer = RSSGroup(
+                dim=embed_dim,
+                input_resolution=(patches_resolution[0], patches_resolution[1]),
+                depth=depths[i_layer],
+                d_state=d_state,
+                mlp_ratio=self.mlp_ratio,
+                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
+                norm_layer=norm_layer,
+                img_size=img_size,
+                patch_size=patch_size,
+                **kwargs
+            )
+            self.layers.append(layer)
+        self.norm = norm_layer(self.num_features)
+
+        self.conv_after_body = nn.Conv2d(embed_dim, embed_dim, 3, 1, 1)
+
+        # ------------------------- 3. high-quality image reconstruction ------------------------- #
+        self.conv_last = nn.Sequential(
+            ResidualBlock(embed_dim, embed_dim),
+            nn.Conv2d(embed_dim, embed_dim, 3, 1, 1),
+            ResidualBlock(embed_dim, embed_dim),
+            nn.Conv2d(embed_dim, num_out_ch, 3, 1, 1)
+        )
+
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            trunc_normal_(m.weight, std=.02)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
+
+
+    def forward_features(self, x):
+        x_size = (x.shape[2], x.shape[3])
+        x = self.patch_embed(x)  # N, L, C
+
+        x = self.pos_drop(x)
+
+        for layer in self.layers:
+            x = layer(x, x_size)
+
+        x = self.norm(x)  # b, seq_len, c
+
+        x = self.patch_unembed(x, x_size)
+
+        return x
+
+    def forward(self, x):
+        self.mean = self.mean.type_as(x)
+        x = (x - self.mean) * self.img_range
+
+        x_first = self.conv_first(x)
+        res = self.conv_after_body(self.forward_features(x_first)) + x_first
+        x = self.conv_last(res)
+
+        x = x / self.img_range + self.mean
+
+        return x
+    
 class PatchEmbed(nn.Module):
     def __init__(self, 
                  img_size=224, 
@@ -57,42 +183,112 @@ class PatchUnEmbed(nn.Module):
         x = x.transpose(1, 2).view(x.shape[0], self.embed_dim, x_size[0], x_size[1])  # b Ph*Pw c
         return x
 
-class ChannelAttention(nn.Module):
-    """Channel attention used in RCAN.
-    Args:
-        num_feat (int): Channel number of intermediate features.
-        squeeze_factor (int): Channel squeeze factor. Default: 16.
-    """
-
-    def __init__(self, num_feat, squeeze_factor=16):
-        super(ChannelAttention, self).__init__()
-        self.attention = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d(num_feat, num_feat // squeeze_factor, 1, padding=0),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(num_feat // squeeze_factor, num_feat, 1, padding=0),
-            nn.Sigmoid())
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(out_channels)
 
     def forward(self, x):
-        y = self.attention(x)
-        return x * y
+        residual = x
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out += residual  # Skip connection
+        out = self.relu(out)
+        return out
 
-class CAB(nn.Module):
-    def __init__(self, num_feat, is_light_sr= False, compress_ratio=3,squeeze_factor=30):
-        super(CAB, self).__init__()
-        if is_light_sr: # a larger compression ratio is used for light-SR
-            compress_ratio = 6
-        self.cab = nn.Sequential(
-            nn.Conv2d(num_feat, num_feat // compress_ratio, 3, 1, 1),
-            nn.GELU(),
-            nn.Conv2d(num_feat // compress_ratio, num_feat, 3, 1, 1),
-            ChannelAttention(num_feat, squeeze_factor)
-        )
+class RSSGroup(nn.Module):
+    def __init__(self,
+                 dim,
+                 input_resolution,
+                 depth,
+                 d_state=16,
+                 mlp_ratio=4.,
+                 drop_path=0.,
+                 norm_layer=nn.LayerNorm,
+                 img_size=None,
+                 patch_size=None,
+                 is_light_sr = False,
+                 **kwargs):
+        super(RSSGroup, self).__init__()
 
-    def forward(self, x):
-        return self.cab(x)
+        self.dim = dim
+        self.input_resolution = input_resolution # [64, 64]
+
+        self.blocks = nn.ModuleList()
+        for i in range(depth):
+            self.blocks.append(RSSBlock(
+                hidden_dim=dim,
+                drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                norm_layer=nn.LayerNorm,
+                attn_drop_rate=0,
+                d_state=d_state,
+                expand=mlp_ratio,
+                input_resolution=input_resolution,
+                is_light_sr=is_light_sr,
+                **kwargs))
 
 
+        # build the last conv layer in each residual state space group
+        self.conv = nn.Conv2d(dim, dim, 3, 1, 1)
+
+        self.patch_embed = PatchEmbed(
+            img_size=img_size, patch_size=patch_size, in_chans=0, embed_dim=dim, norm_layer=None)
+
+        self.patch_unembed = PatchUnEmbed(
+            img_size=img_size, patch_size=patch_size, in_chans=0, embed_dim=dim, norm_layer=None)
+
+    def forward(self, x, x_size):
+
+        for blk in self.blocks:
+            x = blk(x, x_size)
+        return self.patch_embed(self.conv(self.patch_unembed(x, x_size))) + x
+
+class RSSBlock(nn.Module):
+    def __init__(
+            self,
+            hidden_dim: int = 0,
+            drop_path: float = 0,
+            norm_layer: Callable[..., torch.nn.Module] = partial(nn.LayerNorm, eps=1e-6),
+            attn_drop_rate: float = 0,
+            d_state: int = 16,
+            expand: float = 2.,
+            is_light_sr: bool = False,
+            **kwargs,
+    ):
+        super().__init__()
+        self.ln_1 = norm_layer(hidden_dim)
+        self.ss2d = VSSM(d_model=hidden_dim, 
+                         d_state=d_state,
+                         expand=expand,
+                         dropout=attn_drop_rate, 
+                         **kwargs)
+        
+        self.drop_path = DropPath(drop_path)
+        self.skip_scale= nn.Parameter(torch.ones(hidden_dim))
+        self.conv_blk = CAB(hidden_dim,is_light_sr)
+        self.ln_2 = nn.LayerNorm(hidden_dim)
+        self.skip_scale2 = nn.Parameter(torch.ones(hidden_dim))
+
+    def forward(self, input, x_size):
+        # x [B,HW,C]
+        B, L, C = input.shape
+        input = input.view(B, *x_size, C).contiguous()  # [B,H,W,C]
+        # Layer normalization
+        x = self.ln_1(input)
+        # skip connection * scale + drop path (stochastic depth) of selective scan
+        x = input * self.skip_scale + self.drop_path(self.ss2d(x))
+
+        x = x*self.skip_scale2 + self.conv_blk(self.ln_2(x).permute(0, 3, 1, 2).contiguous()).permute(0, 2, 3, 1).contiguous()
+        x = x.view(B, -1, C).contiguous()
+        return x
+    
 class VSSM(nn.Module):
     def __init__(
             self,
@@ -315,230 +511,38 @@ class VSSM(nn.Module):
             out = self.dropout(out)
 
         return out
+    
+class ChannelAttention(nn.Module):
+    """Channel attention used in RCAN.
+    Args:
+        num_feat (int): Channel number of intermediate features.
+        squeeze_factor (int): Channel squeeze factor. Default: 16.
+    """
 
-class RSSBlock(nn.Module):
-    def __init__(
-            self,
-            hidden_dim: int = 0,
-            drop_path: float = 0,
-            norm_layer: Callable[..., torch.nn.Module] = partial(nn.LayerNorm, eps=1e-6),
-            attn_drop_rate: float = 0,
-            d_state: int = 16,
-            expand: float = 2.,
-            is_light_sr: bool = False,
-            **kwargs,
-    ):
-        super().__init__()
-        self.ln_1 = norm_layer(hidden_dim)
-        self.ss2d = VSSM(d_model=hidden_dim, 
-                         d_state=d_state,
-                         expand=expand,
-                         dropout=attn_drop_rate, 
-                         **kwargs)
-        
-        self.drop_path = DropPath(drop_path)
-        self.skip_scale= nn.Parameter(torch.ones(hidden_dim))
-        self.conv_blk = CAB(hidden_dim,is_light_sr)
-        self.ln_2 = nn.LayerNorm(hidden_dim)
-        self.skip_scale2 = nn.Parameter(torch.ones(hidden_dim))
-
-    def forward(self, input, x_size):
-        # x [B,HW,C]
-        B, L, C = input.shape
-        input = input.view(B, *x_size, C).contiguous()  # [B,H,W,C]
-        # Layer normalization
-        x = self.ln_1(input)
-        # skip connection * scale + drop path (stochastic depth) of selective scan
-        x = input * self.skip_scale + self.drop_path(self.ss2d(x))
-
-        x = x*self.skip_scale2 + self.conv_blk(self.ln_2(x).permute(0, 3, 1, 2).contiguous()).permute(0, 2, 3, 1).contiguous()
-        x = x.view(B, -1, C).contiguous()
-        return x
-
-class RSSGroup(nn.Module):
-    def __init__(self,
-                 dim,
-                 input_resolution,
-                 depth,
-                 d_state=16,
-                 mlp_ratio=4.,
-                 drop_path=0.,
-                 norm_layer=nn.LayerNorm,
-                 img_size=None,
-                 patch_size=None,
-                 is_light_sr = False,
-                 **kwargs):
-        super(RSSGroup, self).__init__()
-
-        self.dim = dim
-        self.input_resolution = input_resolution # [64, 64]
-
-        self.blocks = nn.ModuleList()
-        for i in range(depth):
-            self.blocks.append(RSSBlock(
-                hidden_dim=dim,
-                drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-                norm_layer=nn.LayerNorm,
-                attn_drop_rate=0,
-                d_state=d_state,
-                expand=mlp_ratio,
-                input_resolution=input_resolution,
-                is_light_sr=is_light_sr,
-                **kwargs))
-
-
-        # build the last conv layer in each residual state space group
-        self.conv = nn.Conv2d(dim, dim, 3, 1, 1)
-
-        self.patch_embed = PatchEmbed(
-            img_size=img_size, patch_size=patch_size, in_chans=0, embed_dim=dim, norm_layer=None)
-
-        self.patch_unembed = PatchUnEmbed(
-            img_size=img_size, patch_size=patch_size, in_chans=0, embed_dim=dim, norm_layer=None)
-
-    def forward(self, x, x_size):
-
-        for blk in self.blocks:
-            x = blk(x, x_size)
-        return self.patch_embed(self.conv(self.patch_unembed(x, x_size))) + x
-
-class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(ResidualBlock, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU(inplace=True)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(out_channels)
-
-    def forward(self, x):
-        residual = x
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out += residual  # Skip connection
-        out = self.relu(out)
-        return out
-
-class deepFuse(nn.Module):
-    def __init__(self,
-                 img_size=64,
-                 patch_size=1,
-                 spectral_num=4,
-                 embed_dim=96,
-                 depths=(2, 2),
-                 drop_rate=0.,
-                 d_state=16,
-                 mlp_ratio=2.,
-                 drop_path_rate=0.1,
-                 norm_layer=nn.LayerNorm,
-                 patch_norm=True,
-                 upscale=2,
-                 **kwargs):
-        super(deepFuse, self).__init__()
-        num_in_ch = spectral_num
-        num_out_ch = spectral_num
-        self.upscale = upscale
-        self.mlp_ratio = mlp_ratio
-
-        # ------------------------- 1. shallow feature extraction ------------------------- #
-        self.conv_first = nn.Sequential(
-            nn.Conv2d(num_in_ch, embed_dim, kernel_size=3, padding=1),
-            nn.BatchNorm2d(embed_dim),
+    def __init__(self, num_feat, squeeze_factor=16):
+        super(ChannelAttention, self).__init__()
+        self.attention = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(num_feat, num_feat // squeeze_factor, 1, padding=0),
             nn.ReLU(inplace=True),
-            nn.Conv2d(embed_dim, embed_dim, kernel_size=3, padding=1),
-            nn.BatchNorm2d(embed_dim),
-            nn.ReLU(inplace=True)
-        )
-
-        # ------------------------- 2. deep feature extraction ------------------------- #
-        self.num_layers = len(depths)
-        self.embed_dim = embed_dim
-        self.patch_norm = patch_norm
-        self.num_features = embed_dim
-
-        self.patch_embed = PatchEmbed(
-            img_size=img_size,
-            patch_size=patch_size,
-            in_chans=embed_dim,
-            embed_dim=embed_dim,
-            norm_layer=norm_layer if self.patch_norm else None)
-        patches_resolution = self.patch_embed.patches_resolution
-        self.patches_resolution = patches_resolution
-
-        self.patch_unembed = PatchUnEmbed(
-            img_size=img_size,
-            patch_size=patch_size,
-            in_chans=embed_dim,
-            embed_dim=embed_dim,
-            norm_layer=norm_layer if self.patch_norm else None)
-
-        self.pos_drop = nn.Dropout(p=drop_rate)
-
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
-
-        self.layers = nn.ModuleList()
-        for i_layer in range(self.num_layers):
-            layer = RSSGroup(
-                dim=embed_dim,
-                input_resolution=(patches_resolution[0], patches_resolution[1]),
-                depth=depths[i_layer],
-                d_state=d_state,
-                mlp_ratio=self.mlp_ratio,
-                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
-                norm_layer=norm_layer,
-                img_size=img_size,
-                patch_size=patch_size,
-                **kwargs
-            )
-            self.layers.append(layer)
-        self.norm = norm_layer(self.num_features)
-
-        self.conv_after_body = nn.Conv2d(embed_dim, embed_dim, 3, 1, 1)
-
-        # ------------------------- 3. high-quality image reconstruction ------------------------- #
-        self.conv_last = nn.Sequential(
-            ResidualBlock(embed_dim, embed_dim),
-            nn.Conv2d(embed_dim, embed_dim, 3, 1, 1),
-            ResidualBlock(embed_dim, embed_dim),
-            nn.Conv2d(embed_dim, num_out_ch, 3, 1, 1)
-        )
-
-        self.apply(self._init_weights)
-
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-        elif isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
-
-
-    def forward_features(self, x):
-        x_size = (x.shape[2], x.shape[3])
-        x = self.patch_embed(x)  # N, L, C
-
-        x = self.pos_drop(x)
-
-        for layer in self.layers:
-            x = layer(x, x_size)
-
-        x = self.norm(x)  # b, seq_len, c
-
-        x = self.patch_unembed(x, x_size)
-
-        return x
+            nn.Conv2d(num_feat // squeeze_factor, num_feat, 1, padding=0),
+            nn.Sigmoid())
 
     def forward(self, x):
+        y = self.attention(x)
+        return x * y
 
-        x_first = self.conv_first(x)
-        res = self.conv_after_body(self.forward_features(x_first)) + x_first
-        x = self.conv_last(res)
+class CAB(nn.Module):
+    def __init__(self, num_feat, is_light_sr= False, compress_ratio=3,squeeze_factor=30):
+        super(CAB, self).__init__()
+        if is_light_sr: # a larger compression ratio is used for light-SR
+            compress_ratio = 6
+        self.cab = nn.Sequential(
+            nn.Conv2d(num_feat, num_feat // compress_ratio, 3, 1, 1),
+            nn.GELU(),
+            nn.Conv2d(num_feat // compress_ratio, num_feat, 3, 1, 1),
+            ChannelAttention(num_feat, squeeze_factor)
+        )
 
-        x = x / self.img_range + self.mean
-
-        return x
+    def forward(self, x):
+        return self.cab(x)

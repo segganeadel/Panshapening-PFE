@@ -44,7 +44,7 @@ class Dataset_mat_rr(Dataset):
         ms = ms if not self.highpass else ms - cv2.boxFilter(ms, -1, (5, 5))
 
         lms = interp23tap_GPU(ms, 4)
-
+        
         pan = np.expand_dims(pan, 0)
         gt = gt.transpose(2, 0, 1)
         ms = ms.transpose(2, 0, 1)
