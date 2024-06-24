@@ -52,7 +52,7 @@ class ChannelAttention(nn.Module):
         return x * y
 
 class CAB(nn.Module):
-    def __init__(self, num_feat,compress_ratio=3,squeeze_factor=30):
+    def __init__(self, num_feat, compress_ratio=3, squeeze_factor=30):
         super(CAB, self).__init__()
         self.cab = nn.Sequential(
             nn.Conv2d(num_feat, num_feat // compress_ratio, 3, 1, 1),
