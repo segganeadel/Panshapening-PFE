@@ -3,10 +3,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from functools import partial
-from typing import Optional, Callable
-from timm.models.layers import DropPath, to_2tuple, trunc_normal_
+from typing import Callable
+from timm.models.layers import DropPath, trunc_normal_
 from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
-from einops import rearrange, repeat
+from einops import repeat
 
 class PatchEmbed(nn.Module):
     def __init__(self, 
@@ -297,7 +297,7 @@ class RSSBlock(nn.Module):
             self,
             hidden_dim: int = 0,
             drop_path: float = 0,
-            norm_layer: Callable[..., torch.nn.Module] = partial(nn.LayerNorm, eps=1e-6),
+            norm_layer = partial(nn.LayerNorm, eps=1e-6),
             d_state: int = 16,
             expand: float = 2.,
             **kwargs,
