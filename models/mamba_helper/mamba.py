@@ -70,10 +70,8 @@ class CAB(nn.Module):
             nn.Conv2d(num_feat // compress_ratio, num_feat, 3, 1, 1),
             ChannelAttention(num_feat, squeeze_factor)
         )
-
     def forward(self, x):
         return self.cab(x)
-
 
 class VSSM(nn.Module):
     def __init__(
@@ -402,7 +400,7 @@ class deepFuse(nn.Module):
         num_out_ch = spectral_num
         self.expand = expand
 
-        # ------------------------- 1. shallow feature extraction ------------------------- #
+# ------------------------- 1. shallow feature extraction ------------------------- #
         self.conv_first = nn.Sequential(
             nn.Conv2d(num_in_ch, embed_dim, kernel_size=3, padding=1),
             nn.BatchNorm2d(embed_dim),
@@ -412,15 +410,11 @@ class deepFuse(nn.Module):
             nn.ReLU(inplace=True)
         )
 
-        # ------------------------- 2. deep feature extraction ------------------------- #
+# ------------------------- 2. deep feature extraction ------------------------- #
         self.num_layers = len(depths)
-        self.embed_dim = embed_dim
-        self.patch_norm = patch_norm
-        self.num_features = embed_dim
 
-        self.patch_embed = PatchEmbed(in_chans=embed_dim, embed_dim=embed_dim, norm_layer=norm_layer if self.patch_norm else None)
-
-        self.patch_unembed = PatchUnEmbed(in_chans=embed_dim, embed_dim=embed_dim, norm_layer=norm_layer if self.patch_norm else None)
+        self.patch_embed = PatchEmbed(in_chans=embed_dim, embed_dim=embed_dim, norm_layer=norm_layer if patch_norm else None)
+        self.patch_unembed = PatchUnEmbed(in_chans=embed_dim, embed_dim=embed_dim, norm_layer=norm_layer if patch_norm else None)
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
 
@@ -438,10 +432,10 @@ class deepFuse(nn.Module):
             )
             self.layers.append(layer)
 
-        self.norm = norm_layer(self.num_features)
+        self.norm = norm_layer(embed_dim)
 
+# ------------------------- 3. high-quality image reconstruction ------------------------- #
         self.conv_after_body = nn.Conv2d(embed_dim, embed_dim, 3, 1, 1)
-        # ------------------------- 3. high-quality image reconstruction ------------------------- #
         self.conv_last = nn.Sequential(
             ResidualBlock(embed_dim, embed_dim),
             nn.Conv2d(embed_dim, embed_dim, 3, 1, 1),
