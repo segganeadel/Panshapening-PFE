@@ -302,7 +302,6 @@ class RSSBlock(nn.Module):
             hidden_dim: int = 0,
             drop_path: float = 0,
             norm_layer: Callable[..., torch.nn.Module] = partial(nn.LayerNorm, eps=1e-6),
-            attn_drop_rate: float = 0,
             d_state: int = 16,
             expand: float = 2.,
             **kwargs,
@@ -312,7 +311,6 @@ class RSSBlock(nn.Module):
         self.ss2d = VSSM(d_model=hidden_dim, 
                          d_state=d_state,
                          expand=expand,
-                         dropout=attn_drop_rate, 
                          **kwargs)
         
         self.drop_path = DropPath(drop_path)
@@ -349,7 +347,6 @@ class RSSGroup(nn.Module):
                 hidden_dim=dim,
                 drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
                 norm_layer=nn.LayerNorm,
-                attn_drop_rate=0,
                 d_state=d_state,
                 expand=expand,
                 **kwargs))
