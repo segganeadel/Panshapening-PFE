@@ -62,10 +62,8 @@ class ChannelAttention(nn.Module):
         return x * y
 
 class CAB(nn.Module):
-    def __init__(self, num_feat, is_light_sr= False, compress_ratio=3,squeeze_factor=30):
+    def __init__(self, num_feat,compress_ratio=3,squeeze_factor=30):
         super(CAB, self).__init__()
-        if is_light_sr: # a larger compression ratio is used for light-SR
-            compress_ratio = 6
         self.cab = nn.Sequential(
             nn.Conv2d(num_feat, num_feat // compress_ratio, 3, 1, 1),
             nn.GELU(),
@@ -309,7 +307,6 @@ class RSSBlock(nn.Module):
             attn_drop_rate: float = 0,
             d_state: int = 16,
             expand: float = 2.,
-            is_light_sr: bool = False,
             **kwargs,
     ):
         super().__init__()
@@ -322,7 +319,7 @@ class RSSBlock(nn.Module):
         
         self.drop_path = DropPath(drop_path)
         self.skip_scale= nn.Parameter(torch.ones(hidden_dim))
-        self.conv_blk = CAB(hidden_dim,is_light_sr)
+        self.conv_blk = CAB(hidden_dim)
         self.ln_2 = nn.LayerNorm(hidden_dim)
         self.skip_scale2 = nn.Parameter(torch.ones(hidden_dim))
 
@@ -341,8 +338,8 @@ class RSSGroup(nn.Module):
                  depth,
                  d_state=16,
                  expand=4.,
+                 norm_layer=nn.LayerNorm,
                  drop_path=0.,
-                 is_light_sr = False,
                  **kwargs):
         super(RSSGroup, self).__init__()
 
@@ -357,7 +354,6 @@ class RSSGroup(nn.Module):
                 attn_drop_rate=0,
                 d_state=d_state,
                 expand=expand,
-                is_light_sr=is_light_sr,
                 **kwargs))
 
         self.conv = nn.Conv2d(dim, dim, 3, 1, 1)
