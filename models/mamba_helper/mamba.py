@@ -10,20 +10,10 @@ from einops import rearrange, repeat
 
 class PatchEmbed(nn.Module):
     def __init__(self, 
-                 img_size=224, 
-                 patch_size=4, 
                  in_chans=3, 
                  embed_dim=96, 
                  norm_layer=None):
         super().__init__()
-        img_size = to_2tuple(img_size)
-        patch_size = to_2tuple(patch_size)
-        patches_resolution = [img_size[0] // patch_size[0], img_size[1] // patch_size[1]]
-        self.img_size = img_size
-        self.patch_size = patch_size
-        self.patches_resolution = patches_resolution
-        self.num_patches = patches_resolution[0] * patches_resolution[1]
-
         self.in_chans = in_chans
         self.embed_dim = embed_dim
 
@@ -39,17 +29,11 @@ class PatchEmbed(nn.Module):
         return x
 
 class PatchUnEmbed(nn.Module):
-
-    def __init__(self, img_size=224, patch_size=4, in_chans=3, embed_dim=96, norm_layer=None):
+    def __init__(self,
+                in_chans=3, 
+                embed_dim=96, 
+                norm_layer=None):
         super().__init__()
-        img_size = to_2tuple(img_size)
-        patch_size = to_2tuple(patch_size)
-        patches_resolution = [img_size[0] // patch_size[0], img_size[1] // patch_size[1]]
-        self.img_size = img_size
-        self.patch_size = patch_size
-        self.patches_resolution = patches_resolution
-        self.num_patches = patches_resolution[0] * patches_resolution[1]
-
         self.in_chans = in_chans
         self.embed_dim = embed_dim
 
@@ -363,8 +347,6 @@ class RSSGroup(nn.Module):
                  mlp_ratio=4.,
                  drop_path=0.,
                  norm_layer=nn.LayerNorm,
-                 img_size=None,
-                 patch_size=None,
                  is_light_sr = False,
                  **kwargs):
         super(RSSGroup, self).__init__()
@@ -387,11 +369,9 @@ class RSSGroup(nn.Module):
         # build the last conv layer in each residual state space group
         self.conv = nn.Conv2d(dim, dim, 3, 1, 1)
 
-        self.patch_embed = PatchEmbed(
-            img_size=img_size, patch_size=patch_size, in_chans=0, embed_dim=dim, norm_layer=None)
+        self.patch_embed = PatchEmbed(in_chans=0, embed_dim=dim, norm_layer=None)
 
-        self.patch_unembed = PatchUnEmbed(
-            img_size=img_size, patch_size=patch_size, in_chans=0, embed_dim=dim, norm_layer=None)
+        self.patch_unembed = PatchUnEmbed(in_chans=0, embed_dim=dim, norm_layer=None)
 
     def forward(self, x, x_size):
 
@@ -421,8 +401,6 @@ class ResidualBlock(nn.Module):
 
 class deepFuse(nn.Module):
     def __init__(self,
-                 img_size=64,
-                 patch_size=1,
                  spectral_num=4,
                  embed_dim=96,
                  depths=(2, 2),
@@ -454,15 +432,11 @@ class deepFuse(nn.Module):
         self.num_features = embed_dim
 
         self.patch_embed = PatchEmbed(
-            img_size=img_size,
-            patch_size=patch_size,
             in_chans=embed_dim,
             embed_dim=embed_dim,
             norm_layer=norm_layer if self.patch_norm else None)
 
         self.patch_unembed = PatchUnEmbed(
-            img_size=img_size,
-            patch_size=patch_size,
             in_chans=embed_dim,
             embed_dim=embed_dim,
             norm_layer=norm_layer if self.patch_norm else None)
@@ -478,8 +452,6 @@ class deepFuse(nn.Module):
                 mlp_ratio=self.mlp_ratio,
                 drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
                 norm_layer=norm_layer,
-                img_size=img_size,
-                patch_size=patch_size,
                 **kwargs
             )
             self.layers.append(layer)
