@@ -327,14 +327,10 @@ class RSSBlock(nn.Module):
         self.skip_scale2 = nn.Parameter(torch.ones(hidden_dim))
 
     def forward(self, input, x_size):
-        # x [B,HW,C]
         B, L, C = input.shape
         input = input.view(B, *x_size, C).contiguous()  # [B,H,W,C]
-        # Layer normalization
         x = self.ln_1(input)
-        # skip connection * scale + drop path (stochastic depth) of selective scan
         x = input * self.skip_scale + self.drop_path(self.ss2d(x))
-
         x = x*self.skip_scale2 + self.conv_blk(self.ln_2(x).permute(0, 3, 1, 2).contiguous()).permute(0, 2, 3, 1).contiguous()
         x = x.view(B, -1, C).contiguous()
         return x
@@ -344,9 +340,8 @@ class RSSGroup(nn.Module):
                  dim,
                  depth,
                  d_state=16,
-                 mlp_ratio=4.,
+                 expand=4.,
                  drop_path=0.,
-                 norm_layer=nn.LayerNorm,
                  is_light_sr = False,
                  **kwargs):
         super(RSSGroup, self).__init__()
@@ -361,16 +356,12 @@ class RSSGroup(nn.Module):
                 norm_layer=nn.LayerNorm,
                 attn_drop_rate=0,
                 d_state=d_state,
-                expand=mlp_ratio,
+                expand=expand,
                 is_light_sr=is_light_sr,
                 **kwargs))
 
-
-        # build the last conv layer in each residual state space group
         self.conv = nn.Conv2d(dim, dim, 3, 1, 1)
-
         self.patch_embed = PatchEmbed(in_chans=0, embed_dim=dim, norm_layer=None)
-
         self.patch_unembed = PatchUnEmbed(in_chans=0, embed_dim=dim, norm_layer=None)
 
     def forward(self, x, x_size):
@@ -405,7 +396,7 @@ class deepFuse(nn.Module):
                  embed_dim=96,
                  depths=(2, 2),
                  d_state=16,
-                 mlp_ratio=2.,
+                 expand=2.,
                  drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm,
                  patch_norm=True,
@@ -413,7 +404,7 @@ class deepFuse(nn.Module):
         super(deepFuse, self).__init__()
         num_in_ch = spectral_num
         num_out_ch = spectral_num
-        self.mlp_ratio = mlp_ratio
+        self.expand = expand
 
         # ------------------------- 1. shallow feature extraction ------------------------- #
         self.conv_first = nn.Sequential(
@@ -431,34 +422,29 @@ class deepFuse(nn.Module):
         self.patch_norm = patch_norm
         self.num_features = embed_dim
 
-        self.patch_embed = PatchEmbed(
-            in_chans=embed_dim,
-            embed_dim=embed_dim,
-            norm_layer=norm_layer if self.patch_norm else None)
+        self.patch_embed = PatchEmbed(in_chans=embed_dim, embed_dim=embed_dim, norm_layer=norm_layer if self.patch_norm else None)
 
-        self.patch_unembed = PatchUnEmbed(
-            in_chans=embed_dim,
-            embed_dim=embed_dim,
-            norm_layer=norm_layer if self.patch_norm else None)
+        self.patch_unembed = PatchUnEmbed(in_chans=embed_dim, embed_dim=embed_dim, norm_layer=norm_layer if self.patch_norm else None)
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
 
+        # Creation des Blocks RSSG
         self.layers = nn.ModuleList()
         for i_layer in range(self.num_layers):
             layer = RSSGroup(
                 dim=embed_dim,
                 depth=depths[i_layer],
                 d_state=d_state,
-                mlp_ratio=self.mlp_ratio,
+                expand=self.expand,
                 drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
                 norm_layer=norm_layer,
                 **kwargs
             )
             self.layers.append(layer)
+
         self.norm = norm_layer(self.num_features)
 
         self.conv_after_body = nn.Conv2d(embed_dim, embed_dim, 3, 1, 1)
-
         # ------------------------- 3. high-quality image reconstruction ------------------------- #
         self.conv_last = nn.Sequential(
             ResidualBlock(embed_dim, embed_dim),
