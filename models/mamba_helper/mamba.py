@@ -358,7 +358,6 @@ class RSSBlock(nn.Module):
 class RSSGroup(nn.Module):
     def __init__(self,
                  dim,
-                 input_resolution,
                  depth,
                  d_state=16,
                  mlp_ratio=4.,
@@ -371,7 +370,6 @@ class RSSGroup(nn.Module):
         super(RSSGroup, self).__init__()
 
         self.dim = dim
-        self.input_resolution = input_resolution # [64, 64]
 
         self.blocks = nn.ModuleList()
         for i in range(depth):
@@ -382,7 +380,6 @@ class RSSGroup(nn.Module):
                 attn_drop_rate=0,
                 d_state=d_state,
                 expand=mlp_ratio,
-                input_resolution=input_resolution,
                 is_light_sr=is_light_sr,
                 **kwargs))
 
@@ -462,8 +459,6 @@ class deepFuse(nn.Module):
             in_chans=embed_dim,
             embed_dim=embed_dim,
             norm_layer=norm_layer if self.patch_norm else None)
-        patches_resolution = self.patch_embed.patches_resolution
-        self.patches_resolution = patches_resolution
 
         self.patch_unembed = PatchUnEmbed(
             img_size=img_size,
@@ -478,7 +473,6 @@ class deepFuse(nn.Module):
         for i_layer in range(self.num_layers):
             layer = RSSGroup(
                 dim=embed_dim,
-                input_resolution=(patches_resolution[0], patches_resolution[1]),
                 depth=depths[i_layer],
                 d_state=d_state,
                 mlp_ratio=self.mlp_ratio,
@@ -502,7 +496,8 @@ class deepFuse(nn.Module):
         )
 
         self.apply(self._init_weights)
-
+        
+    # Initialisation des poids
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
             trunc_normal_(m.weight, std=.02)
@@ -516,20 +511,21 @@ class deepFuse(nn.Module):
     def forward_features(self, x):
         x_size = (x.shape[2], x.shape[3])
         x = self.patch_embed(x)  # N, L, C
-
         for layer in self.layers:
             x = layer(x, x_size)
-
         x = self.norm(x)  # b, seq_len, c
-
         x = self.patch_unembed(x, x_size)
 
         return x
 
     def forward(self, x):
-
+        # Extraction
         x_first = self.conv_first(x)
+
+        # Passage dans le réseau
         res = self.conv_after_body(self.forward_features(x_first)) + x_first
+
+        # Reconstruction
         x = self.conv_last(res)
 
         return x
