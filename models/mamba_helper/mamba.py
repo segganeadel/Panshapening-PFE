@@ -139,26 +139,21 @@ class VSSM(nn.Module):
             nn.Linear(self.d_inner, (self.dt_rank + self.d_state * 2), bias=False, **factory_kwargs),
             nn.Linear(self.d_inner, (self.dt_rank + self.d_state * 2), bias=False, **factory_kwargs),
         )
-        self.x_proj_weight = nn.Parameter(torch.stack([t.weight for t in self.x_proj], dim=0))  # (K=4, N, inner)
+        self.x_proj_weight = nn.Parameter(torch.stack([t.weight for t in self.x_proj], dim=0))
         del self.x_proj
 
         self.dt_projs = (
-            self.dt_init(self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor,
-                         **factory_kwargs),
-            self.dt_init(self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor,
-                         **factory_kwargs),
-            self.dt_init(self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor,
-                         **factory_kwargs),
-            self.dt_init(self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor,
-                         **factory_kwargs),
+            self.dt_init(self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor,**factory_kwargs),
+            self.dt_init(self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor,**factory_kwargs),
+            self.dt_init(self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor,**factory_kwargs),
+            self.dt_init(self.dt_rank, self.d_inner, dt_scale, dt_init, dt_min, dt_max, dt_init_floor,**factory_kwargs),
         )
-        self.dt_projs_weight = nn.Parameter(torch.stack([t.weight for t in self.dt_projs], dim=0))  # (K=4, inner, rank)
-        self.dt_projs_bias = nn.Parameter(torch.stack([t.bias for t in self.dt_projs], dim=0))  # (K=4, inner)
+        self.dt_projs_weight = nn.Parameter(torch.stack([t.weight for t in self.dt_projs], dim=0))
+        self.dt_projs_bias = nn.Parameter(torch.stack([t.bias for t in self.dt_projs], dim=0))
         del self.dt_projs
 
-        self.A_logs = self.A_log_init(self.d_state, self.d_inner, copies=4, merge=True)  # (K=4, D, N)
-        self.Ds = self.D_init(self.d_inner, copies=4, merge=True)  # (K=4, D, N)
-
+        self.A_logs = self.A_log_init(self.d_state, self.d_inner, copies=4, merge=True) 
+        self.Ds = self.D_init(self.d_inner, copies=4, merge=True)
         self.selective_scan = selective_scan_fn
 
         self.out_norm = nn.LayerNorm(self.d_inner)
@@ -265,7 +260,7 @@ class VSSM(nn.Module):
         x = x.permute(0, 3, 1, 2).contiguous()
         x = F.silu(self.conv2d(x))
         x = F.silu(self.conv2d_2(x)) 
-        x = F.silu(self.conv2d_4(x))# New conv layer 2
+        x = F.silu(self.conv2d_4(x))  # New conv layer 2
         x = F.silu(self.conv2d_3(x))  # New conv layer 3
         y1, y2, y3, y4 = self.ss2d(x)
         assert y1.dtype == torch.float32
@@ -430,7 +425,7 @@ class deepFuse(nn.Module):
 
         self.apply(self._init_weights)
         
-    # Initialisation des poids
+    # Weight initialisation
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
             trunc_normal_(m.weight, std=.02)

@@ -83,7 +83,7 @@ def main(hparams):
     else:
         model = model(num_channels, satellite = satelite)
                 
-    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 2, shuffle_train = False, batch_size = 32)
+    datamodule = PANDataModule(data_dir, img_scale = 2047.0, highpass = highpass, num_workers = 2, shuffle_train = True, batch_size = 32)
     trainer.fit(model, datamodule)
 
 @rank_zero_only
