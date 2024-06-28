@@ -53,5 +53,5 @@ class PANDataModule(L.LightningDataModule):
     def predict_dataloader(self):
         predict_file_path = os.path.join(self.data_dir, 'predict')
 
-        data = Dataset_mat_rr(predict_file_path, sattelite=self.satelite, channels=self.channels, img_scale=self.img_scale, highpass=self.highpass)
+        data = Dataset_mat_fr(predict_file_path, sattelite=self.satelite, channels=self.channels, img_scale=self.img_scale, highpass=self.highpass)
         return DataLoader(data, batch_size=self.batch_size, num_workers=self.num_workers)
