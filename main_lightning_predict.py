@@ -12,7 +12,7 @@ from models.pnn import PNN
 from models.mambfuse import MambFuse
 
 import torch
-from datamodule_mat_other import PANDataModule
+from datamodule_mat import PANDataModule
 try:
     from lightning import Trainer
     from lightning.pytorch.loggers import WandbLogger, CSVLogger
@@ -81,7 +81,7 @@ def main(hparams):
             model = model(num_channels, satellite = satelite)
             model.load_state_dict(torch.load(weights_path))
     
-    datamodule = PANDataModule(data_dir, satelite, num_channels ,img_scale = img_scale, highpass = highpass, num_workers = 2, shuffle_train = False, batch_size = 1)
+    datamodule = PANDataModule(data_dir ,img_scale = img_scale, highpass = highpass, num_workers = 2, shuffle_train = False, batch_size = 1)
 
     if hparams.data == "rr":
         dataloader = datamodule.test_dataloader()
