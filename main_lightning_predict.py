@@ -62,7 +62,7 @@ def main(hparams):
         "wv3": (8, np.index_exp[:,(1,2,4)]),
         "wv4": 4
     }
-    num_channels, slice = channels_dict.get(satelite)
+    num_channels, slice = channels_dict.get(satelite, (4, np.index_exp[:,0:3]))
 
     if hparams.wandb_model:
         artifact = wandb_logger.use_artifact(hparams.wandb_model, "model")

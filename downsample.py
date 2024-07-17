@@ -27,7 +27,7 @@ class MTF():
         self.kernel_size = kernel_size
         self.device = device
 
-        GNyq_dict_ms_default = [1 for _ in range(self.channels)]
+        GNyq_dict_ms_default = [0.3 for _ in range(self.channels)]
         GNyq_dict_ms = {
             'qb':       [0.34, 0.32, 0.30, 0.22], # Band Order: B,G,R,NIR
             'ikonos':   [0.26, 0.28, 0.29, 0.28],    # Band Order: B,G,R,NIR
